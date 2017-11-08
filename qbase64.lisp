@@ -28,28 +28,51 @@
 (defun base64-length (length encode-trailing-bytes)
   (declare (positive-fixnum length))
   (declare (optimize speed))
-  (the positive-fixnum
-       (* 4 (if encode-trailing-bytes
-                (ceiling length 3)
-                (floor length 3)))))
+  (* 4 (if encode-trailing-bytes
+           (ceiling length 3)
+           (floor length 3))))
 
 (declaim (ftype (function (positive-fixnum simple-string) base-char) octet-to-base64))
 (defun octet-to-base64 (octet set)
   (declare (optimize speed))
   (char set (logand #o77 octet)))
 
+(deftype base64-scheme ()
+  '(member :original :uri))
+
+(declaim (ftype (function (positive-fixnum) base-char) octet-to-base64-original))
+(defun octet-to-base64-original (octet)
+  (declare (optimize speed))
+  (char +original-set+ (logand #o77 octet)))
+
+(declaim (ftype (function (positive-fixnum) base-char) octet-to-base64-uri))
+(defun octet-to-base64-uri (octet)
+  (declare (optimize speed))
+  (char +uri-set+ (logand #o77 octet)))
+
+(declaim (ftype (function ((simple-array (unsigned-byte 8))
+                           simple-string
+                           &key
+                           (:scheme base64-scheme)
+                           (:encode-trailing-bytes t)
+                           (:start1 positive-fixnum)
+                           (:end1 positive-fixnum)
+                           (:start2 positive-fixnum)
+                           (:end2 positive-fixnum))
+                          (values positive-fixnum positive-fixnum))
+                %octets-to-base64))
 (defun %octets-to-base64 (octets string &key
-                                          (set +original-set+)
+                                          (scheme :original)
                                           (encode-trailing-bytes t)
                                           (start1 0)
                                           (end1 (length octets))
                                           (start2 0)
                                           (end2 (length string)))
-  (declare (array octets))
-  (declare (simple-string string set))
-  (declare (positive-fixnum start1 end1 start2 end2))
   (declare (optimize speed))
   (loop
+     with conv = (ecase scheme
+                   (:original #'octet-to-base64-original)
+                   (:uri #'octet-to-base64-uri))
      with length1 of-type positive-fixnum = (- end1 start1)
      with length2 of-type positive-fixnum = (- end2 start2)
      with count1 = (multiple-value-bind (count rem)
@@ -66,36 +89,29 @@
      for first of-type (unsigned-byte 8) = (aref octets i1)
      for second of-type (unsigned-byte 8) = (if last-two-missing 0 (aref octets (+ i1 1)))
      for third of-type (unsigned-byte 8) =  (if last-one-missing 0 (aref octets (+ i1 2)))
-     do (setf (char string i2)        (octet-to-base64 (ash first -2) set)
-              (char string (+ i2 1))  (octet-to-base64
-                                       (logior (ash first 4) (ash second -4))
-                                       set)
+     do (setf (char string i2)        (funcall conv (ash first -2))
+              (char string (+ i2 1))  (funcall conv
+                                               (logior (ash first 4) (ash second -4)))
               (char string (+ i2 2))  (if last-two-missing
                                           +base64-pad+
-                                          (octet-to-base64
-                                           (logior (ash second 2) (ash third -6))
-                                           set))
+                                          (funcall conv
+                                                   (logior (ash second 2) (ash third -6))))
               (char string (+ i2 3)) (if last-one-missing
                                          +base64-pad+
-                                         (octet-to-base64 third set)))
-     finally (return (values (the positive-fixnum (min (+ start1 (* n 3)) end1))
-                             (the positive-fixnum (+ start2 (* n 4)))))))
-
-(deftype base64-scheme ()
-  '(member :original :uri))
+                                         (funcall conv third)))
+     finally (return (values (min (+ start1 (* n 3)) end1)
+                             (+ start2 (* n 4))))))
 
 (defstruct (encoder
              (:constructor %make-encoder))
-  set
+  scheme
   pad
   pbytes
   (pbytes-end 0)
   finish-p)
 
 (defun make-encoder (&key (scheme :original) (pad t))
-  (%make-encoder :set (ecase scheme
-                        (:original +original-set+)
-                        (:uri +uri-set+))
+  (%make-encoder :scheme scheme
                  :pad pad))
 
 (bind::defbinding-form (:symbol-macrolet :use-values-p nil)
@@ -111,7 +127,7 @@
 
 POSITION: First index of STRING that wasn't updated
 PENDING-P: True if not all OCTETS were encoded"
-  (bind:bind (((:slots set pbytes pbytes-end finish-p) encoder)
+  (bind:bind (((:slots scheme pbytes pbytes-end finish-p) encoder)
               ((:symbol-macrolet len1) (- end1 start1)))
     (when (and (plusp len1) finish-p)
       (error "New OCTETS can't be passed when :FINISH was previously true"))
@@ -130,11 +146,11 @@ PENDING-P: True if not all OCTETS were encoded"
       ;; Then encode PBYTES
       (multiple-value-bind (pos1 pos2)
           (%octets-to-base64 pbytes string
+                             :scheme scheme
                              :start1 0
                              :end1 pbytes-end
                              :start2 start2
                              :end2 end2
-                             :set set
                              :encode-trailing-bytes (and (zerop len1) finish))
         (setf start2 pos2)
         ;; If we can't encode all PBYTES, copy everything from OCTETS
@@ -165,6 +181,7 @@ PENDING-P: True if not all OCTETS were encoded"
     ;; Encode OCTETS now
     (multiple-value-bind (pos1 pos2)
         (%octets-to-base64 octets string
+                           :scheme scheme
                            :start1 start1
                            :end1 end1
                            :start2 start2
@@ -215,24 +232,33 @@ PENDING-P: True if not all OCTETS were encoded"
   
   )
 
+(defmacro expand-stream-write-sequence ()
+  `(progn
+     (when (null end)
+       (setf end (length sequence)))
+     (bind:bind (((:slots (encoder output-encoder)
+                          (string output-string)
+                          (underlying-stream underlying-output-stream))
+                  stream)
+                 ((:slots pbytes-end) encoder)
+                 (length (base64-length (+ pbytes-end (- end start)) nil)))
+       (when (or (null string)
+                 (< (length string) length))
+         (setf string (make-string length :element-type 'base-char)))
+       ;; TODO: what happens when STRING size is fixed
+       (multiple-value-bind (pos2 pendingp)
+           (encode encoder sequence string :start1 start :end1 end)
+         (declare (ignore pendingp))
+         (write-string string underlying-stream :end pos2))
+       sequence)))
+
+(defmethod stream-write-sequence ((stream base64-stream) sequence start end &key)
+  (expand-stream-write-sequence))
+
+;; SBCL expects SB-GRAY:STREAM-WRITE-SEQUENCE to be overridden
+#+sbcl
 (defmethod sb-gray:stream-write-sequence ((stream base64-stream) sequence &optional start end)
-  (when (null end)
-    (setf end (length sequence)))
-  (bind:bind (((:slots (encoder output-encoder)
-                       (string output-string)
-                       (underlying-stream underlying-output-stream))
-               stream)
-              ((:slots pbytes-end) encoder)
-              (length (base64-length (+ pbytes-end (- end start)) nil)))
-    (when (or (null string)
-              (< (length string) length))
-      (setf string (make-string length :element-type 'base-char)))
-    ;; TODO: what happens when STRING size is fixed
-    (multiple-value-bind (pos2 pendingp)
-        (encode encoder sequence string :start1 start :end1 end)
-      (declare (ignore pendingp))
-        (write-string string underlying-stream :end pos2))
-    sequence))
+  (expand-stream-write-sequence))
 
 (defun flush-pending-bytes (stream)
   (bind:bind (((:slots (encoder output-encoder)
