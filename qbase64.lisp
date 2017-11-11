@@ -50,57 +50,62 @@
   (declare (optimize speed))
   (char +uri-set+ (logand #o77 octet)))
 
-(declaim (ftype (function ((simple-array (unsigned-byte 8))
-                           simple-string
-                           &key
-                           (:scheme base64-scheme)
-                           (:encode-trailing-bytes t)
-                           (:start1 positive-fixnum)
-                           (:end1 positive-fixnum)
-                           (:start2 positive-fixnum)
-                           (:end2 positive-fixnum))
-                          (values positive-fixnum positive-fixnum))
-                %octets-to-base64))
-(defun %octets-to-base64 (octets string &key
-                                          (scheme :original)
-                                          (encode-trailing-bytes t)
-                                          (start1 0)
-                                          (end1 (length octets))
-                                          (start2 0)
-                                          (end2 (length string)))
-  (declare (optimize speed))
-  (loop
-     with conv = (ecase scheme
-                   (:original #'octet-to-base64-original)
-                   (:uri #'octet-to-base64-uri))
-     with length1 of-type positive-fixnum = (- end1 start1)
-     with length2 of-type positive-fixnum = (- end2 start2)
-     with count1 = (multiple-value-bind (count rem)
-                       (floor length1 3)
-                     (if encode-trailing-bytes
-                         (if (plusp rem) (1+ count) count)
-                         count))
-     with count2 = (floor length2 4)
-     for n of-type positive-fixnum below (min count1 count2)
-     for i1 of-type positive-fixnum from start1 by 3
-     for i2 of-type positive-fixnum from start2 by 4
-     for last-two-missing = (= (- end1 i1) 1)
-     for last-one-missing = (or last-two-missing (= (- end1 i1) 2))
-     for first of-type (unsigned-byte 8) = (aref octets i1)
-     for second of-type (unsigned-byte 8) = (if last-two-missing 0 (aref octets (+ i1 1)))
-     for third of-type (unsigned-byte 8) =  (if last-one-missing 0 (aref octets (+ i1 2)))
-     do (setf (char string i2)        (funcall conv (ash first -2))
-              (char string (+ i2 1))  (funcall conv
-                                               (logior (ash first 4) (ash second -4)))
-              (char string (+ i2 2))  (if last-two-missing
-                                          +base64-pad+
-                                          (funcall conv
-                                                   (logior (ash second 2) (ash third -6))))
-              (char string (+ i2 3)) (if last-one-missing
-                                         +base64-pad+
-                                         (funcall conv third)))
-     finally (return (values (min (+ start1 (* n 3)) end1)
-                             (+ start2 (* n 4))))))
+(defgeneric %octets-to-base64 (octets string &key
+                                               scheme
+                                               encode-trailing-bytes
+                                               start1
+                                               end1
+                                               start2
+                                               end2))
+
+(defmacro def-%octets-to-base64 (array-type)
+  ` (defmethod %octets-to-base64 ((octets ,array-type) string &key
+                                                                (scheme :original)
+                                                                (encode-trailing-bytes t)
+                                                                (start1 0)
+                                                                (end1 (length octets))
+                                                                (start2 0)
+                                                                (end2 (length string)))
+      (declare ((,array-type (unsigned-byte 8)) octets))
+      (declare (simple-string string))
+      (declare (base64-scheme scheme))
+      (declare (positive-fixnum start1 end1 start2 end2))
+      (declare (optimize speed))
+      (loop
+         with conv = (ecase scheme
+                       (:original #'octet-to-base64-original)
+                       (:uri #'octet-to-base64-uri))
+         with length1 of-type positive-fixnum = (- end1 start1)
+         with length2 of-type positive-fixnum = (- end2 start2)
+         with count1 = (multiple-value-bind (count rem)
+                           (floor length1 3)
+                         (if encode-trailing-bytes
+                             (if (plusp rem) (1+ count) count)
+                             count))
+         with count2 = (floor length2 4)
+         for n of-type positive-fixnum below (min count1 count2)
+         for i1 of-type positive-fixnum from start1 by 3
+         for i2 of-type positive-fixnum from start2 by 4
+         for last-two-missing = (= (- end1 i1) 1)
+         for last-one-missing = (or last-two-missing (= (- end1 i1) 2))
+         for first of-type (unsigned-byte 8) = (aref octets i1)
+         for second of-type (unsigned-byte 8) = (if last-two-missing 0 (aref octets (+ i1 1)))
+         for third of-type (unsigned-byte 8) =  (if last-one-missing 0 (aref octets (+ i1 2)))
+         do (setf (char string i2)        (funcall conv (ash first -2))
+                  (char string (+ i2 1))  (funcall conv
+                                                   (logior (ash first 4) (ash second -4)))
+                  (char string (+ i2 2))  (if last-two-missing
+                                              +base64-pad+
+                                              (funcall conv
+                                                       (logior (ash second 2) (ash third -6))))
+                  (char string (+ i2 3)) (if last-one-missing
+                                             +base64-pad+
+                                             (funcall conv third)))
+         finally (return (values (the positive-fixnum (min (+ start1 (* n 3)) end1))
+                                 (the positive-fixnum (+ start2 (* n 4))))))))
+
+(def-%octets-to-base64 simple-array)
+(def-%octets-to-base64 array)
 
 (defstruct (encoder
              (:constructor %make-encoder))
