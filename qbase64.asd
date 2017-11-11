@@ -5,7 +5,7 @@
   :author "Your Name <your.name@example.com>"
   :license "Specify license here"
   :serial t
-  :depends-on (:trivial-gray-streams)
+  :depends-on (:trivial-gray-streams :metabang-bind)
   :components ((:file "package")
                (:file "qbase64")))
 

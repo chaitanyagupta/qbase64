@@ -114,8 +114,9 @@
   (%make-encoder :scheme scheme
                  :pad pad))
 
-(bind::defbinding-form (:symbol-macrolet :use-values-p nil)
-  `(symbol-macrolet ((,(first bind::variables) ,bind::values))))
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (bind::defbinding-form (:symbol-macrolet :use-values-p nil)
+    `(symbol-macrolet ((,(first bind::variables) ,bind::values)))))
 
 (defun encode (encoder octets string &key
                                        (start1 0)
@@ -232,50 +233,44 @@ PENDING-P: True if not all OCTETS were encoded"
   
   )
 
-(defmacro expand-stream-write-sequence ()
-  `(progn
-     (when (null end)
-       (setf end (length sequence)))
-     (bind:bind (((:slots (encoder output-encoder)
-                          (string output-string)
-                          (underlying-stream underlying-output-stream))
-                  stream)
-                 ((:slots pbytes-end) encoder)
-                 (length (base64-length (+ pbytes-end (- end start)) nil)))
-       (when (or (null string)
-                 (< (length string) length))
-         (setf string (make-string length :element-type 'base-char)))
-       ;; TODO: what happens when STRING size is fixed
-       (multiple-value-bind (pos2 pendingp)
-           (encode encoder sequence string :start1 start :end1 end)
-         (declare (ignore pendingp))
-         (write-string string underlying-stream :end pos2))
-       sequence)))
-
-(defmethod stream-write-sequence ((stream base64-stream) sequence start end &key)
-  (expand-stream-write-sequence))
-
-;; SBCL expects SB-GRAY:STREAM-WRITE-SEQUENCE to be overridden
-#+sbcl
-(defmethod sb-gray:stream-write-sequence ((stream base64-stream) sequence &optional start end)
-  (expand-stream-write-sequence))
-
-(defun flush-pending-bytes (stream)
+(defun %stream-write-sequence (stream sequence start end finish)
+  (when (null end)
+    (setf end (length sequence)))
   (bind:bind (((:slots (encoder output-encoder)
                        (string output-string)
                        (underlying-stream underlying-output-stream))
                stream)
               ((:slots pbytes-end) encoder)
-              (length (base64-length pbytes-end t)))
+              (length (base64-length (+ pbytes-end (- end start)) finish)))
     (when (or (null string)
               (< (length string) length))
       (setf string (make-string length :element-type 'base-char)))
     ;; TODO: what happens when STRING size is fixed
-    (multiple-value-bind (pos2 pending)
-        (encode encoder nil string :finish t)
-      (declare (ignore pending))
-      (when (plusp pos2)
-        (write-sequence string underlying-stream :end pos2)))))
+    (multiple-value-bind (pos2 pendingp)
+        (encode encoder sequence string :start1 start :end1 end :finish finish)
+      (declare (ignore pendingp))
+      (write-string string underlying-stream :end pos2))
+    sequence))
+
+(defmethod stream-write-sequence ((stream base64-stream) sequence start end &key)
+  (%stream-write-sequence stream sequence start end nil))
+
+#+sbcl
+(defmethod sb-gray:stream-write-sequence ((stream base64-stream) sequence &optional start end)
+  (%stream-write-sequence stream sequence start end nil))
+
+#+ccl
+(defmethod ccl:stream-write-vector ((stream base64-stream) sequence start end)
+  (%stream-write-sequence stream sequence start end nil))
+
+#+cmucl
+(defmethod ext:stream-write-sequence ((stream base64-stream) sequence &optional start end)
+  (%stream-write-sequence stream sequence start end nil))
+
+(define-constant +empty-octets+ (make-array 0 :element-type '(unsigned-byte 8)))
+
+(defun flush-pending-bytes (stream)
+  (%stream-write-sequence stream +empty-octets+ 0 0 t))
 
 (defmethod stream-force-output ((stream base64-stream))
   (flush-pending-bytes stream)
@@ -288,8 +283,4 @@ PENDING-P: True if not all OCTETS were encoded"
 (defmethod close ((stream base64-stream) &key abort)
   (declare (ignore abort))
   (flush-pending-bytes stream)
-  (call-next-method))
-
-;;; archived
-
-
+  #-cmucl (call-next-method))
