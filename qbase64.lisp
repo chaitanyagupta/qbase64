@@ -212,38 +212,25 @@ PENDING-P: True if not all OCTETS were encoded"
             finish-p nil)
       (return-from encode (values pos2 nil)))))
 
-;;; stream
+;;; output stream
 
-(defclass base64-stream (fundamental-binary-stream)
-  ((underlying-input-stream :initform nil :initarg :underlying-input-stream)
-   (underlying-output-stream :initform nil :initarg :underlying-output-stream)
-   output-encoder
-   (output-string :initform nil)))
+(defclass base64-output-stream (fundamental-binary-output-stream)
+  ((underlying-stream :initarg :underlying-stream)
+   encoder
+   (string :initform nil)))
 
-(defmethod initialize-instance :after ((stream base64-stream) &key (scheme :original))
-  (with-slots (output-encoder)
+(defmethod initialize-instance :after ((stream base64-output-stream) &key (scheme :original))
+  (with-slots (encoder)
       stream
-    (setf output-encoder (make-encoder :scheme scheme))))
+    (setf encoder (make-encoder :scheme scheme))))
 
-(defmethod stream-element-type ((stream base64-stream))
+(defmethod stream-element-type ((stream base64-output-stream))
   '(unsigned-byte 8))
-
-(defmethod input-stream-p ((stream base64-stream))
-  (not (null (slot-value stream 'underlying-input-stream))))
-
-(defmethod output-stream-p ((stream base64-stream))
-  (not (null (slot-value stream 'underlying-output-stream))))
-
-(defmethod stream-read-sequence ((stream base64-stream) sequence start end &key)
-  
-  )
 
 (defun %stream-write-sequence (stream sequence start end finish)
   (when (null end)
     (setf end (length sequence)))
-  (bind:bind (((:slots (encoder output-encoder)
-                       (string output-string)
-                       (underlying-stream underlying-output-stream))
+  (bind:bind (((:slots encoder string underlying-stream)
                stream)
               ((:slots pbytes-end) encoder)
               (length (base64-length (+ pbytes-end (- end start)) finish)))
@@ -257,19 +244,19 @@ PENDING-P: True if not all OCTETS were encoded"
       (write-string string underlying-stream :end pos2))
     sequence))
 
-(defmethod stream-write-sequence ((stream base64-stream) sequence start end &key)
+(defmethod stream-write-sequence ((stream base64-output-stream) sequence start end &key)
   (%stream-write-sequence stream sequence start end nil))
 
 #+sbcl
-(defmethod sb-gray:stream-write-sequence ((stream base64-stream) sequence &optional start end)
+(defmethod sb-gray:stream-write-sequence ((stream base64-output-stream) sequence &optional start end)
   (%stream-write-sequence stream sequence start end nil))
 
 #+ccl
-(defmethod ccl:stream-write-vector ((stream base64-stream) sequence start end)
+(defmethod ccl:stream-write-vector ((stream base64-output-stream) sequence start end)
   (%stream-write-sequence stream sequence start end nil))
 
 #+cmucl
-(defmethod ext:stream-write-sequence ((stream base64-stream) sequence &optional start end)
+(defmethod ext:stream-write-sequence ((stream base64-output-stream) sequence &optional start end)
   (%stream-write-sequence stream sequence start end nil))
 
 (define-constant +empty-octets+ (make-array 0 :element-type '(unsigned-byte 8)))
@@ -277,15 +264,15 @@ PENDING-P: True if not all OCTETS were encoded"
 (defun flush-pending-bytes (stream)
   (%stream-write-sequence stream +empty-octets+ 0 0 t))
 
-(defmethod stream-force-output ((stream base64-stream))
+(defmethod stream-force-output ((stream base64-output-stream))
   (flush-pending-bytes stream)
-  (force-output (slot-value stream 'underlying-output-stream)))
+  (force-output (slot-value stream 'underlying-stream)))
 
-(defmethod stream-finish-output ((stream base64-stream))
+(defmethod stream-finish-output ((stream base64-output-stream))
   (flush-pending-bytes stream)
-  (finish-output (slot-value stream 'underlying-output-stream)))
+  (finish-output (slot-value stream 'underlying-stream)))
 
-(defmethod close ((stream base64-stream) &key abort)
+(defmethod close ((stream base64-output-stream) &key abort)
   (declare (ignore abort))
   (flush-pending-bytes stream)
   #-cmucl (call-next-method))
