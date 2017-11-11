@@ -112,14 +112,12 @@
 (defstruct (encoder
              (:constructor %make-encoder))
   scheme
-  pad
   pbytes
   (pbytes-end 0)
   finish-p)
 
-(defun make-encoder (&key (scheme :original) (pad t))
-  (%make-encoder :scheme scheme
-                 :pad pad))
+(defun make-encoder (&key (scheme :original))
+  (%make-encoder :scheme scheme))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (bind::defbinding-form (:symbol-macrolet :use-values-p nil)
@@ -278,3 +276,5 @@ PENDING-P: True if not all OCTETS were encoded"
   (declare (ignore abort))
   (flush-pending-bytes stream)
   #-cmucl (call-next-method))
+
+;;; decode
