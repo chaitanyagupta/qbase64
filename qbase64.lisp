@@ -15,7 +15,7 @@
   (reduce (lambda (o i) `(,@o ,i)) r :from-end t))
 
 
-;;; encode
+;;; alphabet
 
 (define-constant +original-set+ "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/")
 (define-constant +uri-set+ "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_")
@@ -23,6 +23,8 @@
 
 (define-constant +base64-pad+ #\=)
 (declaim (base-char +base64-pad+))
+
+;;; encode
 
 (declaim (ftype (function (positive-fixnum t) positive-fixnum) base64-length))
 (defun base64-length (length encode-trailing-bytes)
