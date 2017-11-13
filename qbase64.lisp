@@ -284,4 +284,13 @@ PENDING-P: True if not all OCTETS were encoded"
   (flush-pending-bytes stream)
   #-cmucl (call-next-method))
 
+;;; octets-to-base64
+
+(defun octets-to-base64 (octets &key (scheme :original))
+  (with-output-to-string (str)
+    (with-open-stream (out (make-instance 'base64-output-stream
+                                          :scheme scheme
+                                          :underlying-stream str))
+      (write-sequence octets out))))
+
 ;;; decode
