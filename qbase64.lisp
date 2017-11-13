@@ -294,3 +294,143 @@ PENDING-P: True if not all OCTETS were encoded"
       (write-sequence octets out))))
 
 ;;; decode
+
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defun reverse-set (set)
+    (let ((array (make-array 128
+                             :element-type '(unsigned-byte 8)
+                             :initial-element 0)))
+      (loop
+         for i upfrom 0
+         for char across set
+         do (setf (aref array (char-code char)) i))
+      array)))
+
+(define-constant +original-reverse-set+
+    (reverse-set +original-set+))
+
+(define-constant +uri-reverse-set+
+    (reverse-set +uri-set+))
+
+(defun base64-to-byte-original (char)
+  (aref +original-reverse-set+ (char-code char)))
+
+(defun base64-to-byte-uri (char)
+  (aref +uri-reverse-set+ (char-code char)))
+
+(defun octets-length (length)
+  (* 3 (ceiling length 4)))
+
+(defun %base64-to-octets (string octets &key
+                                          (scheme :original)
+                                          (start1 0)
+                                          (end1 (length string))
+                                          (start2 0)
+                                          (end2 (length octets)))
+  (let* ((conv (ecase scheme
+                 (:original #'base64-to-byte-original)
+                 (:uri #'base64-to-byte-uri)))
+         (length1 (- end1 start1))
+         (length2 (- end2 start2))
+         (count (min (floor length1 4) (floor length2 3))))
+    (declare (positive-fixnum length1 length2 count))
+    (when (zerop count)
+      (return-from %base64-to-octets (values 0 0)))
+    (loop
+       for n of-type positive-fixnum below count
+       for i1 of-type positive-fixnum from start1 by 4
+       for i2 of-type positive-fixnum from start2 by 3
+       for first-byte = (funcall conv (char string i1))
+       for second-byte = (funcall conv (char string (+ i1 1)))
+       for third-byte = (funcall conv (char string (+ i1 2)))
+       for fourth-byte = (funcall conv (char string (+ i1 3)))
+       do (setf (aref octets i2)       (logand #xff (logior (ash first-byte 2) (ash second-byte -4)))
+                (aref octets (+ i2 1)) (logand #xff (logior (ash second-byte 4) (ash third-byte -2)))
+                (aref octets (+ i2 2)) (logand #xff (logior (ash third-byte 6) fourth-byte)))
+       finally (return (progn (values (* n 4)
+                                (- (* n 3)
+                                   (if (eql +pad-char+ (char string (+ i1 2))) 1 0)
+                                   (if (eql +pad-char+ (char string (+ i1 3))) 1 0))))))))
+
+(defstruct (decoder
+             (:constructor %make-decoder))
+  scheme
+  pchars
+  (pchars-end 0))
+
+(defun make-decoder (&key (scheme :original))
+  (%make-decoder :scheme scheme))
+
+(defun decode (decoder string octets &key
+                                       (start1 0)
+                                       (end1 (length string))
+                                       (start2 0)
+                                       (end2 (length octets)))
+  (bind:bind (((:slots scheme pchars pchars-end) decoder)
+              ((:symbol-macrolet len1) (- end1 start1)))
+    ;; decode PCHARS first
+    (when (plusp pchars-end)
+      (let ((bytes-to-copy (min (rem (- 4 (rem pchars-end 4)) 4)
+                                len1)))
+        (replace pchars string
+                 :start1 pchars-end
+                 :end1 (incf pchars-end bytes-to-copy)
+                 :start2 0
+                 :end2 bytes-to-copy)
+        (incf start1 bytes-to-copy)
+        (multiple-value-bind (pos1 pos2)
+            (%base64-to-octets pchars octets
+                               :scheme scheme
+                               :start1 0
+                               :end1 pchars-end
+                               :start2 start2
+                               :end2 end2)
+          (setf start2 pos2)
+          (when (< pos1 pchars-end)
+            (let* ((new-pchars-length (+ (- pchars-end pos1) len1))
+                   (new-pchars (if (<= new-pchars-length (length pchars))
+                                   pchars
+                                   (make-string (* 4 (ceiling new-pchars-length 4))
+                                                :element-type 'base-char))))
+              (replace new-pchars pchars
+                       :start2 pos1
+                       :end2 pchars-end)
+              (replace new-pchars string
+                       :start1 (- pchars-end pos1)
+                       :start2 start1
+                       :end2 end2)
+              (setf pchars new-pchars
+                    pchars-end new-pchars-length)
+              (return-from decode (values pos2 t)))))))
+
+    ;; If STRING is not given
+    (when (zerop len1)
+      (setf pchars nil
+            pchars-end 0)
+      (return-from decode (values start2 nil)))
+
+    ;; Encode STRING now
+    (multiple-value-bind (pos1 pos2)
+        (%base64-to-octets string octets
+                           :scheme scheme
+                           :start1 start1
+                           :end1 end1
+                           :start2 start2
+                           :end2 end2)
+      (when (< pos1 end1)
+        (let* ((new-pchars-length (- end1 pos1))
+               (new-pchars (if (<= new-pchars-length (length pchars))
+                               pchars
+                               (make-string (* 4 (ceiling new-pchars-length 4))
+                                            :element-type 'base-char))))
+          (replace new-pchars string
+                   :start2 pos1
+                   :end2 end1)
+          (setf pchars new-pchars
+                pchars-end new-pchars-length)
+          (return-from decode (values pos2 t))))
+
+      ;; All chars encoded
+      (setf pchars nil
+            pchars-end 0)
+      (return-from decode (values pos2 nil)))))
