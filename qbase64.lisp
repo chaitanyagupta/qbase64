@@ -32,8 +32,8 @@
 (define-constant +uri-set+ "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_")
 (declaim (simple-string +original-set+ +uri-set+))
 
-(define-constant +base64-pad+ #\=)
-(declaim (base-char +base64-pad+))
+(define-constant +pad-char+ #\=)
+(declaim (base-char +pad-char+))
 
 ;;; encode
 
@@ -108,11 +108,11 @@
                   (char string (+ i2 1))  (funcall conv
                                                    (logior (ash first 4) (ash second -4)))
                   (char string (+ i2 2))  (if last-two-missing
-                                              +base64-pad+
+                                              +pad-char+
                                               (funcall conv
                                                        (logior (ash second 2) (ash third -6))))
                   (char string (+ i2 3)) (if last-one-missing
-                                             +base64-pad+
+                                             +pad-char+
                                              (funcall conv third)))
          finally (return (values (the positive-fixnum (min (+ start1 (* n 3)) end1))
                                  (the positive-fixnum (+ start2 (* n 4))))))))
