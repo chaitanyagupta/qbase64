@@ -149,7 +149,7 @@ PENDING-P: True if not all OCTETS were encoded"
     (when (plusp (length pbytes))
       ;; Ensure that PBYTES length is a multiple of 3 by copying from OCTETS
       (let* ((last-group-fill-length (rem (- 3 (rem pbytes-end 3)) 3))
-             (bytes-to-copy (min (- end1 start1) last-group-fill-length)))
+             (bytes-to-copy (min len1 last-group-fill-length)))
         (replace pbytes octets
                  :start1 pbytes-end
                  :end1 (incf pbytes-end bytes-to-copy)
