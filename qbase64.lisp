@@ -14,6 +14,17 @@
 (defmacro nest (&rest r)
   (reduce (lambda (o i) `(,@o ,i)) r :from-end t))
 
+(defun octets (&rest contents)
+  (make-array (length contents)
+              :element-type '(unsigned-byte 8)
+              :initial-contents contents))
+
+(defun make-octet-vector (size)
+  (make-array size :element-type '(unsigned-byte 8)))
+
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (bind::defbinding-form (:symbol-macrolet :use-values-p nil)
+    `(symbol-macrolet ((,(first bind::variables) ,bind::values)))))
 
 ;;; alphabet
 
@@ -118,10 +129,6 @@
 
 (defun make-encoder (&key (scheme :original))
   (%make-encoder :scheme scheme))
-
-(eval-when (:compile-toplevel :load-toplevel :execute)
-  (bind::defbinding-form (:symbol-macrolet :use-values-p nil)
-    `(symbol-macrolet ((,(first bind::variables) ,bind::values)))))
 
 (defun encode (encoder octets string &key
                                        (start1 0)
