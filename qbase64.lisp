@@ -221,7 +221,7 @@ PENDING-P: True if not all OCTETS were encoded"
 
 ;;; output stream
 
-(defclass base64-output-stream (fundamental-binary-output-stream)
+(defclass base64-output-stream (fundamental-binary-output-stream trivial-gray-stream-mixin)
   ((underlying-stream :initarg :underlying-stream)
    encoder
    (string :initform nil)))
@@ -252,18 +252,6 @@ PENDING-P: True if not all OCTETS were encoded"
     sequence))
 
 (defmethod stream-write-sequence ((stream base64-output-stream) sequence start end &key)
-  (%stream-write-sequence stream sequence start end nil))
-
-#+sbcl
-(defmethod sb-gray:stream-write-sequence ((stream base64-output-stream) sequence &optional start end)
-  (%stream-write-sequence stream sequence start end nil))
-
-#+ccl
-(defmethod ccl:stream-write-vector ((stream base64-output-stream) sequence start end)
-  (%stream-write-sequence stream sequence start end nil))
-
-#+cmucl
-(defmethod ext:stream-write-sequence ((stream base64-output-stream) sequence &optional start end)
   (%stream-write-sequence stream sequence start end nil))
 
 (define-constant +empty-octets+ (make-array 0 :element-type '(unsigned-byte 8)))
