@@ -323,7 +323,7 @@ PENDING-P: True if not all OCTETS were encoded"
          (count (min (floor length1 4) (floor length2 3))))
     (declare (positive-fixnum length1 length2 count))
     (when (zerop count)
-      (return-from %base64-to-octets (values 0 0)))
+      (return-from %base64-to-octets (values start1 start2)))
     (loop
        for n of-type positive-fixnum below count
        for i1 of-type positive-fixnum from start1 by 4
@@ -335,10 +335,10 @@ PENDING-P: True if not all OCTETS were encoded"
        do (setf (aref octets i2)       (logand #xff (logior (ash first-byte 2) (ash second-byte -4)))
                 (aref octets (+ i2 1)) (logand #xff (logior (ash second-byte 4) (ash third-byte -2)))
                 (aref octets (+ i2 2)) (logand #xff (logior (ash third-byte 6) fourth-byte)))
-       finally (return (progn (values (* n 4)
-                                (- (* n 3)
-                                   (if (eql +pad-char+ (char string (+ i1 2))) 1 0)
-                                   (if (eql +pad-char+ (char string (+ i1 3))) 1 0))))))))
+       finally (return (values (+ start1 (* n 4))
+                               (+ start2 (- (* n 3)
+                                            (if (eql +pad-char+ (char string (+ i1 2))) 1 0)
+                                            (if (eql +pad-char+ (char string (+ i1 3))) 1 0))))))))
 
 (defstruct (decoder
              (:constructor %make-decoder))
@@ -386,7 +386,7 @@ PENDING-P: True if not all OCTETS were encoded"
               (replace new-pchars string
                        :start1 (- pchars-end pos1)
                        :start2 start1
-                       :end2 end2)
+                       :end2 end1)
               (setf pchars new-pchars
                     pchars-end new-pchars-length)
               (return-from decode (values pos2 t)))))))
@@ -422,3 +422,67 @@ PENDING-P: True if not all OCTETS were encoded"
       (setf pchars nil
             pchars-end 0)
       (return-from decode (values pos2 nil)))))
+
+;;; input stream
+
+(defclass base64-input-stream (fundamental-binary-input-stream trivial-gray-stream-mixin)
+  ((underlying-stream :initarg :underlying-stream)
+   decoder
+   (string :initform nil)
+   (buffer :initform nil)
+   (buffer-end :initform 0)))
+
+(defmethod initialize-instance :after ((stream base64-input-stream) &key (scheme :original))
+  (with-slots (decoder)
+      stream
+    (setf decoder (make-decoder :scheme scheme))))
+
+(defmethod stream-element-type ((stream base64-output-stream))
+  '(unsigned-byte 8))
+
+(defun least-multiple-upfrom (n m)
+  (* n (ceiling m n)))
+
+(defmethod stream-read-sequence ((stream base64-input-stream) sequence start end &key)
+  (when (null end)
+    (setf end (length sequence)))
+  (bind:bind (((:slots decoder string underlying-stream buffer buffer-end) stream)
+              ((:slots pchars-end) decoder)
+              ((:symbol-macrolet length) (- end start))
+              ((:symbol-macrolet string-length) (base64-length length t)))
+    (when (plusp buffer-end)
+      (let ((bytes-copied (min length buffer-end)))
+        (replace sequence buffer
+                 :start1 start :end1 end
+                 :start2 0 :end2 buffer-end)
+        (replace buffer buffer
+                 :start2 bytes-copied
+                 :end2 buffer-end)
+        (decf buffer-end bytes-copied)
+        (incf start bytes-copied)))
+    (when (< (length string) string-length)
+      (setf string (make-string string-length :element-type 'base-char)))
+    (bind:bind ((end1 (read-sequence string underlying-stream))
+                ((:values pos2 pendingp)
+                 (decode decoder string sequence
+                         :end1 end1
+                         :start2 start
+                         :end2 end)))
+      (when (and (< pos2 end) pendingp)
+        (bind:bind ((remaining-length (- end pos2))
+                    (buffer-length (least-multiple-upfrom 3 remaining-length))
+                    (new-buffer (if (> buffer-length (length buffer))
+                                    (make-octet-vector buffer-length)
+                                    buffer))
+                    (buffer-pos (decode decoder nil new-buffer :end2 buffer-length))
+                    (bytes-copied (min remaining-length buffer-pos)))
+          (replace sequence new-buffer
+                   :start1 pos2 :end1 end
+                   :start2 0 :end2 buffer-pos)
+          (replace new-buffer new-buffer
+                   :start2 bytes-copied
+                   :end2 buffer-pos)
+          (setf buffer new-buffer
+                buffer-end (- buffer-pos bytes-copied))
+          (incf pos2 bytes-copied)))
+      pos2)))
