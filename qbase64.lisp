@@ -26,11 +26,23 @@
   (bind::defbinding-form (:symbol-macrolet :use-values-p nil)
     `(symbol-macrolet ((,(first bind::variables) ,bind::values)))))
 
+(declaim (ftype (function (positive-fixnum positive-fixnum) positive-fixnum) least-multiple-upfrom))
+(defun least-multiple-upfrom (multiple-of upfrom)
+  (* multiple-of (ceiling upfrom multiple-of)))
+
+;;; constants
+
+(declaim ((array (unsigned-byte 8)) +empty-octets+))
+(define-constant +empty-octets+ (make-array 0 :element-type '(unsigned-byte 8)))
+
+(declaim (simple-base-string +empty-string+))
+(define-constant +empty-string+ (make-string 0 :element-type 'base-char))
+
 ;;; alphabet
 
+(declaim (simple-string +original-set+ +uri-set+))
 (define-constant +original-set+ "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/")
 (define-constant +uri-set+ "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_")
-(declaim (simple-string +original-set+ +uri-set+))
 
 (define-constant +pad-char+ #\=)
 (declaim (base-char +pad-char+))
@@ -254,8 +266,6 @@ PENDING-P: True if not all OCTETS were encoded"
 (defmethod stream-write-sequence ((stream base64-output-stream) sequence start end &key)
   (%stream-write-sequence stream sequence start end nil))
 
-(define-constant +empty-octets+ (make-array 0 :element-type '(unsigned-byte 8)))
-
 (defun flush-pending-bytes (stream)
   (%stream-write-sequence stream +empty-octets+ 0 0 t))
 
@@ -309,12 +319,23 @@ PENDING-P: True if not all OCTETS were encoded"
 (defun octets-length (length)
   (* 3 (ceiling length 4)))
 
+(declaim (ftype (function (simple-base-string
+                           (simple-array (unsigned-byte 8))
+                           &key
+                           (:scheme base64-scheme)
+                           (:start1 positive-fixnum)
+                           (:end1 positive-fixnum)
+                           (:start2 positive-fixnum)
+                           (:end2 positive-fixnum))
+                          (values positive-fixnum positive-fixnum))
+                %base64-to-octets))
 (defun %base64-to-octets (string octets &key
                                           (scheme :original)
                                           (start1 0)
                                           (end1 (length string))
                                           (start2 0)
                                           (end2 (length octets)))
+  (declare (optimize speed))
   (let* ((conv (ecase scheme
                  (:original #'base64-to-byte-original)
                  (:uri #'base64-to-byte-uri)))
@@ -328,34 +349,43 @@ PENDING-P: True if not all OCTETS were encoded"
        for n of-type positive-fixnum below count
        for i1 of-type positive-fixnum from start1 by 4
        for i2 of-type positive-fixnum from start2 by 3
-       for first-byte = (funcall conv (char string i1))
-       for second-byte = (funcall conv (char string (+ i1 1)))
-       for third-byte = (funcall conv (char string (+ i1 2)))
-       for fourth-byte = (funcall conv (char string (+ i1 3)))
+       for first-byte of-type (unsigned-byte 8) = (funcall conv (char string i1))
+       for second-byte of-type (unsigned-byte 8) = (funcall conv (char string (+ i1 1)))
+       for third-byte of-type (unsigned-byte 8) = (funcall conv (char string (+ i1 2)))
+       for fourth-byte of-type (unsigned-byte 8) = (funcall conv (char string (+ i1 3)))
        do (setf (aref octets i2)       (logand #xff (logior (ash first-byte 2) (ash second-byte -4)))
                 (aref octets (+ i2 1)) (logand #xff (logior (ash second-byte 4) (ash third-byte -2)))
                 (aref octets (+ i2 2)) (logand #xff (logior (ash third-byte 6) fourth-byte)))
-       finally (return (values (+ start1 (* n 4))
-                               (+ start2 (- (* n 3)
-                                            (if (eql +pad-char+ (char string (+ i1 2))) 1 0)
-                                            (if (eql +pad-char+ (char string (+ i1 3))) 1 0))))))))
+       finally (return (values (the positive-fixnum (+ start1 (* n 4)))
+                               (the positive-fixnum
+                                    (+ start2 (- (* n 3)
+                                                 (if (eql +pad-char+ (char string (+ i1 2))) 1 0)
+                                                 (if (eql +pad-char+ (char string (+ i1 3))) 1 0)))))))))
 
 (defstruct (decoder
              (:constructor %make-decoder))
   scheme
-  pchars
+  (pchars (make-string 0 :element-type 'base-char) :type (simple-array base-char))
   (pchars-end 0))
 
 (defun make-decoder (&key (scheme :original))
   (%make-decoder :scheme scheme))
 
+(defparameter *cons-count* 0)
 (defun decode (decoder string octets &key
                                        (start1 0)
                                        (end1 (length string))
                                        (start2 0)
                                        (end2 (length octets)))
+  (declare (decoder decoder))
+  (declare (simple-base-string string))
+  (declare ((array (unsigned-byte 8)) octets))
+  (declare (positive-fixnum start1 end1 start2 end2))
+  (declare (optimize speed))
   (bind:bind (((:slots scheme pchars pchars-end) decoder)
               ((:symbol-macrolet len1) (- end1 start1)))
+    (declare (simple-string pchars))
+    (declare (positive-fixnum pchars-end))
     ;; decode PCHARS first
     (when (plusp pchars-end)
       (let ((bytes-to-copy (min (rem (- 4 (rem pchars-end 4)) 4)
@@ -378,8 +408,9 @@ PENDING-P: True if not all OCTETS were encoded"
             (let* ((new-pchars-length (+ (- pchars-end pos1) len1))
                    (new-pchars (if (<= new-pchars-length (length pchars))
                                    pchars
-                                   (make-string (* 4 (ceiling new-pchars-length 4))
+                                   (make-string (least-multiple-upfrom 4 new-pchars-length)
                                                 :element-type 'base-char))))
+              (declare (positive-fixnum new-pchars-length))
               (replace new-pchars pchars
                        :start2 pos1
                        :end2 pchars-end)
@@ -393,11 +424,11 @@ PENDING-P: True if not all OCTETS were encoded"
 
     ;; If STRING is not given
     (when (zerop len1)
-      (setf pchars nil
+      (setf pchars +empty-string+
             pchars-end 0)
       (return-from decode (values start2 nil)))
 
-    ;; Encode STRING now
+    ;; Decode STRING now
     (multiple-value-bind (pos1 pos2)
         (%base64-to-octets string octets
                            :scheme scheme
@@ -409,8 +440,9 @@ PENDING-P: True if not all OCTETS were encoded"
         (let* ((new-pchars-length (- end1 pos1))
                (new-pchars (if (<= new-pchars-length (length pchars))
                                pchars
-                               (make-string (* 4 (ceiling new-pchars-length 4))
+                               (make-string (least-multiple-upfrom 4 new-pchars-length)
                                             :element-type 'base-char))))
+          (declare (positive-fixnum new-pchars-length))
           (replace new-pchars string
                    :start2 pos1
                    :end2 end1)
@@ -419,7 +451,7 @@ PENDING-P: True if not all OCTETS were encoded"
           (return-from decode (values pos2 t))))
 
       ;; All chars encoded
-      (setf pchars nil
+      (setf pchars +empty-string+
             pchars-end 0)
       (return-from decode (values pos2 nil)))))
 
@@ -440,16 +472,13 @@ PENDING-P: True if not all OCTETS were encoded"
 (defmethod stream-element-type ((stream base64-output-stream))
   '(unsigned-byte 8))
 
-(defun least-multiple-upfrom (n m)
-  (* n (ceiling m n)))
-
 (defmethod stream-read-sequence ((stream base64-input-stream) sequence start end &key)
   (when (null end)
     (setf end (length sequence)))
   (bind:bind (((:slots decoder string underlying-stream buffer buffer-end) stream)
               ((:slots pchars-end) decoder)
               ((:symbol-macrolet length) (- end start))
-              ((:symbol-macrolet string-length) (base64-length length t)))
+              (string-end (- (base64-length (- length buffer-end) t) pchars-end)))
     (when (plusp buffer-end)
       (let ((bytes-copied (min length buffer-end)))
         (replace sequence buffer
@@ -460,9 +489,9 @@ PENDING-P: True if not all OCTETS were encoded"
                  :end2 buffer-end)
         (decf buffer-end bytes-copied)
         (incf start bytes-copied)))
-    (when (< (length string) string-length)
-      (setf string (make-string string-length :element-type 'base-char)))
-    (bind:bind ((end1 (read-sequence string underlying-stream))
+    (when (< (length string) string-end)
+      (setf string (make-string string-end :element-type 'base-char)))
+    (bind:bind ((end1 (read-sequence string underlying-stream :end string-end))
                 ((:values pos2 pendingp)
                  (decode decoder string sequence
                          :end1 end1
@@ -474,7 +503,7 @@ PENDING-P: True if not all OCTETS were encoded"
                     (new-buffer (if (> buffer-length (length buffer))
                                     (make-octet-vector buffer-length)
                                     buffer))
-                    (buffer-pos (decode decoder nil new-buffer :end2 buffer-length))
+                    (buffer-pos (decode decoder +empty-string+ new-buffer :end2 buffer-length))
                     (bytes-copied (min remaining-length buffer-pos)))
           (replace sequence new-buffer
                    :start1 pos2 :end1 end
