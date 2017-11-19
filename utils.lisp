@@ -9,9 +9,6 @@
   `(defconstant ,name (if (boundp ',name) (symbol-value ',name) ,value)
      ,@(when doc (list doc))))
 
-(defmacro nest (&rest r)
-  (reduce (lambda (o i) `(,@o ,i)) r :from-end t))
-
 (defun octets (&rest contents)
   (make-array (length contents)
               :element-type '(unsigned-byte 8)
