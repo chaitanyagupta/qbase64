@@ -6,9 +6,7 @@
 
 (in-package #:qbase64-test)
 
-(def-suite encoder)
-
-(in-suite encoder)
+;;; utils
 
 (defun external-encode (octets)
   (temporary-file:with-open-temporary-file (tmp :direction :output :element-type '(unsigned-byte 8))
@@ -25,21 +23,32 @@
     (dotimes (i size octets)
       (setf (aref octets i) (random-octet)))))
 
-(test empty
-  (let ((octets (octets)))
-    (is (string= "" (qbase64::octets-to-base64 octets)))))
+;;; encoder tests
 
-(test one
-  (let ((octets (random-octets 1)))
-    (is (string= (external-encode octets) (qbase64::octets-to-base64 octets)))))
+(def-suite encoder)
 
-(test two
-  (let ((octets (random-octets 2)))
-    (is (string= (external-encode octets) (qbase64::octets-to-base64 octets)))))
+(in-suite encoder)
 
-(test three
-  (let ((octets (random-octets 3)))
-    (is (string= (external-encode octets) (qbase64::octets-to-base64 octets)))))
+(test octets-to-base64
+  (dolist (size (list 0 1 2 3 4 5 6 7 8 9 10 100))
+    (let* ((octets (random-octets size))
+           (encoded (qbase64::octets-to-base64 octets))
+           (external-encoded (external-encode octets)))
+      (is (string= external-encoded encoded)
+          "Failed for size ~A: Expected ~S for ~S, but got ~S"
+          size external-encoded octets encoded))))
 
+;;; decoder tests
 
+(def-suite decoder)
 
+(in-suite decoder)
+
+(test base64-to-octets
+  (dolist (size (list 0 1 2 3 4 5 6 7 8 9 10 100))
+    (let* ((octets (random-octets size))
+           (string (external-encode octets))
+           (decoded (qbase64::base64-to-octets string)))
+      (is (equalp octets decoded)
+          "Failed for size ~A: Expected ~S for ~S, but got ~S"
+          size octets string decoded))))
