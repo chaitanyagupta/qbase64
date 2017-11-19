@@ -342,7 +342,7 @@ PENDING-P: True if not all OCTETS were encoded"
                                        (end2 (length octets)))
   (declare (type decoder decoder)
            (type string string)
-           (type (array (unsigned-byte 8)) octets)
+           (type array octets)
            (type positive-fixnum start1 end1 start2 end2))
   (bind:bind (((:slots scheme pchars pchars-end) decoder)
               ((:symbol-macrolet len1) (- end1 start1)))
@@ -422,8 +422,8 @@ PENDING-P: True if not all OCTETS were encoded"
 (defclass base64-input-stream (fundamental-binary-input-stream trivial-gray-stream-mixin)
   ((underlying-stream :initarg :underlying-stream)
    decoder
-   (string :initform nil)
-   (buffer :initform nil)
+   (string :initform +empty-string+)
+   (buffer :initform +empty-octets+)
    (buffer-end :initform 0)
    (single-byte-vector :initform (make-octet-vector 1))))
 
