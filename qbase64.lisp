@@ -23,7 +23,7 @@
 
 (declaim (ftype (function (positive-fixnum t) positive-fixnum) base64-length))
 (defun base64-length (length encode-trailing-bytes)
-  (declare (positive-fixnum length))
+  (declare (type positive-fixnum length))
   (declare (optimize speed))
   (* 4 (if encode-trailing-bytes
            (ceiling length 3)
@@ -59,8 +59,8 @@
      ((octets (array (unsigned-byte 8)))        (string string))
      ((octets (array (unsigned-byte 8)))        (string simple-string))
      ((octets array)                            (string string)))
-  (declare (base64-scheme scheme))
-  (declare (positive-fixnum start1 end1 start2 end2))
+  (declare (type base64-scheme scheme))
+  (declare (type positive-fixnum start1 end1 start2 end2))
   (declare (optimize speed))
   (loop
      with conv = (ecase scheme
@@ -114,10 +114,10 @@
 
 POSITION: First index of STRING that wasn't updated
 PENDING-P: True if not all OCTETS were encoded"
-  (declare (encoder encoder)
-           (array octets)
-           (string string)
-           (positive-fixnum start1 end1 start2 end2))
+  (declare (type encoder encoder)
+           (type array octets)
+           (type string string)
+           (type positive-fixnum start1 end1 start2 end2))
   (bind:bind (((:slots scheme pbytes pbytes-end finish-p) encoder)
               ((:symbol-macrolet len1) (- end1 start1)))
     (when (and (plusp len1) finish-p)
@@ -297,8 +297,8 @@ PENDING-P: True if not all OCTETS were encoded"
      ((string simple-string) (octets (array (unsigned-byte 8))))
      ((string string)        (octets (array (unsigned-byte 8))))
      ((string string)        (octets array)))
-  (declare (base64-scheme scheme)
-           (positive-fixnum start1 end1 start2 end2))
+  (declare (type base64-scheme scheme)
+           (type positive-fixnum start1 end1 start2 end2))
   (declare (optimize speed))
   (let* ((conv (ecase scheme
                  (:original #'base64-to-byte-original)
@@ -306,7 +306,7 @@ PENDING-P: True if not all OCTETS were encoded"
          (length1 (- end1 start1))
          (length2 (- end2 start2))
          (count (min (floor length1 4) (floor length2 3))))
-    (declare (positive-fixnum length1 length2 count))
+    (declare (type positive-fixnum length1 length2 count))
     (when (zerop count)
       (return-from %base64-to-octets (values start1 start2)))
     (loop
@@ -335,20 +335,19 @@ PENDING-P: True if not all OCTETS were encoded"
 (defun make-decoder (&key (scheme :original))
   (%make-decoder :scheme scheme))
 
-(defparameter *cons-count* 0)
 (defun decode (decoder string octets &key
                                        (start1 0)
                                        (end1 (length string))
                                        (start2 0)
                                        (end2 (length octets)))
-  (declare (decoder decoder)
-           (string string)
-           ((array (unsigned-byte 8)) octets)
-           (positive-fixnum start1 end1 start2 end2))
+  (declare (type decoder decoder)
+           (type string string)
+           (type (array (unsigned-byte 8)) octets)
+           (type positive-fixnum start1 end1 start2 end2))
   (bind:bind (((:slots scheme pchars pchars-end) decoder)
               ((:symbol-macrolet len1) (- end1 start1)))
-    (declare (simple-string pchars))
-    (declare (positive-fixnum pchars-end))
+    (declare (type simple-string pchars))
+    (declare (type positive-fixnum pchars-end))
     ;; decode PCHARS first
     (when (plusp pchars-end)
       (let ((bytes-to-copy (min (rem (- 4 (rem pchars-end 4)) 4)
@@ -373,7 +372,7 @@ PENDING-P: True if not all OCTETS were encoded"
                                    pchars
                                    (make-string (least-multiple-upfrom 4 new-pchars-length)
                                                 :element-type 'base-char))))
-              (declare (positive-fixnum new-pchars-length))
+              (declare (type positive-fixnum new-pchars-length))
               (replace new-pchars pchars
                        :start2 pos1
                        :end2 pchars-end)
@@ -405,7 +404,7 @@ PENDING-P: True if not all OCTETS were encoded"
                                pchars
                                (make-string (least-multiple-upfrom 4 new-pchars-length)
                                             :element-type 'base-char))))
-          (declare (positive-fixnum new-pchars-length))
+          (declare (type positive-fixnum new-pchars-length))
           (replace new-pchars string
                    :start2 pos1
                    :end2 end1)
