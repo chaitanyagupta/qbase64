@@ -490,3 +490,15 @@ PENDING-P: True if not all OCTETS were encoded"
 (defmethod close ((stream base64-input-stream) &key abort)
   (declare (ignore abort))
   #-cmucl (call-next-method))
+
+;;; base64-to-octets
+
+(defun base64-to-octets (string &key (scheme :original))
+  (with-input-from-string (str-in string)
+    (with-open-stream (in (make-instance 'base64-input-stream
+                                         :underlying-stream str-in
+                                         :scheme scheme))
+      (let ((octets (make-octet-vector (octets-length (length string)))))
+        (make-array (read-sequence octets in)
+                    :element-type '(unsigned-byte 8)
+                    :displaced-to octets)))))
