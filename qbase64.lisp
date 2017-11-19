@@ -195,7 +195,8 @@ PENDING-P: True if not all OCTETS were encoded"
 (defclass base64-output-stream (fundamental-binary-output-stream trivial-gray-stream-mixin)
   ((underlying-stream :initarg :underlying-stream)
    encoder
-   (string :initform nil)))
+   (string :initform nil)
+   (single-byte-vector :initform (make-octet-vector 1))))
 
 (defmethod initialize-instance :after ((stream base64-output-stream) &key (scheme :original))
   (with-slots (encoder)
@@ -224,6 +225,13 @@ PENDING-P: True if not all OCTETS were encoded"
 
 (defmethod stream-write-sequence ((stream base64-output-stream) sequence start end &key)
   (%stream-write-sequence stream sequence start end nil))
+
+(defmethod stream-write-byte ((stream base64-output-stream) integer)
+  (with-slots (single-byte-vector)
+      stream
+    (setf (aref single-byte-vector 0) integer)
+    (%stream-write-sequence stream single-byte-vector 0 1 nil)
+    integer))
 
 (defun flush-pending-bytes (stream)
   (%stream-write-sequence stream +empty-octets+ 0 0 t))
@@ -417,7 +425,8 @@ PENDING-P: True if not all OCTETS were encoded"
    decoder
    (string :initform nil)
    (buffer :initform nil)
-   (buffer-end :initform 0)))
+   (buffer-end :initform 0)
+   (single-byte-vector :initform (make-octet-vector 1))))
 
 (defmethod initialize-instance :after ((stream base64-input-stream) &key (scheme :original))
   (with-slots (decoder)
@@ -433,7 +442,7 @@ PENDING-P: True if not all OCTETS were encoded"
   (bind:bind (((:slots decoder string underlying-stream buffer buffer-end) stream)
               ((:slots pchars-end) decoder)
               ((:symbol-macrolet length) (- end start))
-              (string-end (- (base64-length (- length buffer-end) t) pchars-end)))
+              (string-end (- (base64-length (max 0 (- length buffer-end)) t) pchars-end)))
     (when (plusp buffer-end)
       (let ((bytes-copied (min length buffer-end)))
         (replace sequence buffer
@@ -470,3 +479,11 @@ PENDING-P: True if not all OCTETS were encoded"
                 buffer-end (- buffer-pos bytes-copied))
           (incf pos2 bytes-copied)))
       pos2)))
+
+(defmethod stream-read-byte ((stream base64-input-stream))
+  (with-slots (single-byte-vector)
+      stream
+    (let ((pos (stream-read-sequence stream single-byte-vector 0 1)))
+      (if (zerop pos)
+          :eof
+          (aref single-byte-vector 0)))))
