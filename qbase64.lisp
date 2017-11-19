@@ -487,3 +487,7 @@ PENDING-P: True if not all OCTETS were encoded"
       (if (zerop pos)
           :eof
           (aref single-byte-vector 0)))))
+
+(defmethod close ((stream base64-input-stream) &key abort)
+  (declare (ignore abort))
+  #-cmucl (call-next-method))
