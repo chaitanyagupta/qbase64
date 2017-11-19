@@ -7,5 +7,6 @@
   :serial t
   :depends-on (:trivial-gray-streams :metabang-bind)
   :components ((:file "package")
+               (:file "utils")
                (:file "qbase64")))
 
