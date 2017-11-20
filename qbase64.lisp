@@ -209,7 +209,9 @@ PENDING-P: True if not all BYTES were encoded"
   ((underlying-stream :initarg :underlying-stream)
    encoder
    (string :initform nil)
-   (single-byte-vector :initform (make-byte-vector 1))))
+   (single-byte-vector :initform (make-byte-vector 1))
+   (linebreak :initform 0 :initarg :linebreak)
+   (column :initform 0)))
 
 (defmethod initialize-instance :after ((stream encode-stream) &key (scheme :original))
   (with-slots (encoder)
@@ -225,10 +227,12 @@ PENDING-P: True if not all BYTES were encoded"
 (defun %stream-write-sequence (stream sequence start end finish)
   (when (null end)
     (setf end (length sequence)))
-  (bind:bind (((:slots encoder string underlying-stream)
+  (bind:bind (((:slots encoder string underlying-stream linebreak column)
                stream)
               ((:slots pbytes-end) encoder)
               (length (encode-length (+ pbytes-end (- end start)) finish)))
+    (declare (type encode-stream stream)
+             (type encoder encoder))
     (when (or (null string)
               (< (length string) length))
       (setf string (make-string length :element-type 'base-char)))
@@ -236,7 +240,19 @@ PENDING-P: True if not all BYTES were encoded"
     (multiple-value-bind (pos2 pendingp)
         (encode encoder sequence string :start1 start :end1 end :finish finish)
       (declare (ignore pendingp))
-      (write-string string underlying-stream :end pos2))
+      (if (plusp linebreak)
+          (loop
+             for line-start = start then line-end
+             for line-end = (min pos2 (+ line-start (- linebreak column)))
+             do
+               (write-string string underlying-stream
+                             :start line-start
+                             :end line-end)
+               (setf column (rem (+ column (- line-end line-start)) linebreak))
+               (when (and (zerop column) (> line-end line-start))
+                 (write-char #\Newline underlying-stream))
+             while (< line-end pos2))
+          (write-string string underlying-stream :end pos2)))
     sequence))
 
 (defmethod stream-write-sequence ((stream encode-stream) sequence start end &key)
@@ -250,7 +266,11 @@ PENDING-P: True if not all BYTES were encoded"
     integer))
 
 (defun flush-pending-bytes (stream)
-  (%stream-write-sequence stream +empty-bytes+ 0 0 t))
+  (with-slots (linebreak column underlying-stream)
+      stream
+    (%stream-write-sequence stream +empty-bytes+ 0 0 t)
+    (when (and (plusp linebreak) (plusp column))
+      (write-char #\Newline underlying-stream))))
 
 (defmethod stream-force-output ((stream encode-stream))
   (flush-pending-bytes stream)
