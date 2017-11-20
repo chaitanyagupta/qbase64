@@ -432,7 +432,7 @@ PENDING-P: True if not all OCTETS were encoded"
       stream
     (setf decoder (make-decoder :scheme scheme))))
 
-(defmethod stream-element-type ((stream base64-output-stream))
+(defmethod stream-element-type ((stream base64-input-stream))
   '(unsigned-byte 8))
 
 (defmethod stream-read-sequence ((stream base64-input-stream) sequence start end &key)
