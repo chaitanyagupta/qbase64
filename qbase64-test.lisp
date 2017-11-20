@@ -1,7 +1,7 @@
 (in-package #:cl-user)
 
 (defpackage #:qbase64-test
-  (:use #:cl #:qbase64 #:fiveam)
+  (:use #:cl #:fiveam)
   (:import-from #:qbase64 #:bytes #:make-byte-vector))
 
 (in-package #:qbase64-test)
@@ -32,7 +32,7 @@
 (test encode-bytes
   (dolist (size (list 0 1 2 3 4 5 6 7 8 9 10 100))
     (let* ((bytes (random-bytes size))
-           (encoded (qbase64::encode-bytes bytes))
+           (encoded (qbase64:encode-bytes bytes))
            (external-encoded (external-encode bytes)))
       (is (string= external-encoded encoded)
           "Failed for size ~A: Expected ~S for ~S, but got ~S"
@@ -40,7 +40,7 @@
 
 (test encode-stream-states
   (with-output-to-string (s)
-    (let ((out (make-instance 'qbase64::encode-stream
+    (let ((out (make-instance 'qbase64:encode-stream
                               :underlying-stream s)))
       (is (open-stream-p out))
       (is (equalp (stream-element-type out) '(unsigned-byte 8)))
@@ -61,14 +61,14 @@
   (dolist (size (list 0 1 2 3 4 5 6 7 8 9 10 100))
     (let* ((bytes (random-bytes size))
            (string (external-encode bytes))
-           (decoded (qbase64::decode-string string)))
+           (decoded (qbase64:decode-string string)))
       (is (equalp bytes decoded)
           "Failed for size ~A: Expected ~S for ~S, but got ~S"
           size bytes string decoded))))
 
 (test decode-stream-states
   (with-input-from-string (s "AQID")
-    (let ((in (make-instance 'qbase64::decode-stream
+    (let ((in (make-instance 'qbase64:decode-stream
                              :underlying-stream s)))
       (is (open-stream-p in))
       (is (equalp (stream-element-type in) '(unsigned-byte 8)))
