@@ -38,6 +38,19 @@
           "Failed for size ~A: Expected ~S for ~S, but got ~S"
           size external-encoded octets encoded))))
 
+(test output-stream-states
+  (with-output-to-string (s)
+    (let ((out (make-instance 'qbase64::base64-output-stream
+                              :underlying-stream s)))
+      (is (open-stream-p out))
+      (is (equalp (stream-element-type out) '(unsigned-byte 8)))
+      (is (output-stream-p out))
+      (is (not (input-stream-p out)))
+      (close out)
+      (is (not (open-stream-p out)))
+      ;; underlying stream is not closed automatically
+      (is (open-stream-p s)))))
+
 ;;; decoder tests
 
 (def-suite decoder)
@@ -52,3 +65,16 @@
       (is (equalp octets decoded)
           "Failed for size ~A: Expected ~S for ~S, but got ~S"
           size octets string decoded))))
+
+(test input-stream-states
+  (with-input-from-string (s "AQID")
+    (let ((in (make-instance 'qbase64::base64-input-stream
+                             :underlying-stream s)))
+      (is (open-stream-p in))
+      (is (equalp (stream-element-type in) '(unsigned-byte 8)))
+      (is (input-stream-p in))
+      (is (not (output-stream-p in)))
+      (close in)
+      (is (not (open-stream-p in)))
+      ;; underlying stream is not closed automatically
+      (is (open-stream-p s)))))

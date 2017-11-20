@@ -190,9 +190,27 @@ PENDING-P: True if not all OCTETS were encoded"
             finish-p nil)
       (return-from encode (values pos2 nil)))))
 
+;;; stream mixin
+
+(defclass stream-mixin ()
+  ((openp :accessor stream-open-p :initform t)))
+
+(defmethod open-stream-p ((stream stream-mixin))
+  (stream-open-p stream))
+
+(defmethod close ((stream stream-mixin) &key abort)
+  (declare (ignore abort))
+  (setf (stream-open-p stream) nil))
+
+(defmethod input-stream-p ((stream stream-mixin))
+  nil)
+
+(defmethod output-stream-p ((stream stream-mixin))
+  nil)
+
 ;;; output stream
 
-(defclass base64-output-stream (fundamental-binary-output-stream trivial-gray-stream-mixin)
+(defclass base64-output-stream (stream-mixin fundamental-binary-output-stream trivial-gray-stream-mixin)
   ((underlying-stream :initarg :underlying-stream)
    encoder
    (string :initform nil)
@@ -202,6 +220,9 @@ PENDING-P: True if not all OCTETS were encoded"
   (with-slots (encoder)
       stream
     (setf encoder (make-encoder :scheme scheme))))
+
+(defmethod output-stream-p ((stream base64-output-stream))
+  t)
 
 (defmethod stream-element-type ((stream base64-output-stream))
   '(unsigned-byte 8))
@@ -244,10 +265,9 @@ PENDING-P: True if not all OCTETS were encoded"
   (flush-pending-bytes stream)
   (finish-output (slot-value stream 'underlying-stream)))
 
-(defmethod close ((stream base64-output-stream) &key abort)
+(defmethod close :before ((stream base64-output-stream) &key abort)
   (declare (ignore abort))
-  (flush-pending-bytes stream)
-  #-cmucl (call-next-method))
+  (flush-pending-bytes stream))
 
 ;;; octets-to-base64
 
@@ -419,7 +439,7 @@ PENDING-P: True if not all OCTETS were encoded"
 
 ;;; input stream
 
-(defclass base64-input-stream (fundamental-binary-input-stream trivial-gray-stream-mixin)
+(defclass base64-input-stream (stream-mixin fundamental-binary-input-stream trivial-gray-stream-mixin)
   ((underlying-stream :initarg :underlying-stream)
    decoder
    (string :initform +empty-string+)
@@ -431,6 +451,9 @@ PENDING-P: True if not all OCTETS were encoded"
   (with-slots (decoder)
       stream
     (setf decoder (make-decoder :scheme scheme))))
+
+(defmethod input-stream-p ((stream base64-input-stream))
+  t)
 
 (defmethod stream-element-type ((stream base64-input-stream))
   '(unsigned-byte 8))
@@ -486,10 +509,6 @@ PENDING-P: True if not all OCTETS were encoded"
       (if (zerop pos)
           :eof
           (aref single-byte-vector 0)))))
-
-(defmethod close ((stream base64-input-stream) &key abort)
-  (declare (ignore abort))
-  #-cmucl (call-next-method))
 
 ;;; base64-to-octets
 
