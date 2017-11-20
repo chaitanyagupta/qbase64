@@ -8,6 +8,7 @@
   :depends-on ("trivial-gray-streams" "metabang-bind")
   :components ((:file "package")
                (:file "utils")
+               (:file "stream-utils")
                (:file "qbase64")))
 
 (asdf:defsystem "qbase64/test"

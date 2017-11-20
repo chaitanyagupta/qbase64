@@ -185,24 +185,6 @@ PENDING-P: True if not all BYTES were encoded"
             finish-p nil)
       (return-from encode (values pos2 nil)))))
 
-;;; stream mixin
-
-(defclass stream-mixin ()
-  ((openp :accessor stream-open-p :initform t)))
-
-(defmethod open-stream-p ((stream stream-mixin))
-  (stream-open-p stream))
-
-(defmethod close ((stream stream-mixin) &key abort)
-  (declare (ignore abort))
-  (setf (stream-open-p stream) nil))
-
-(defmethod input-stream-p ((stream stream-mixin))
-  nil)
-
-(defmethod output-stream-p ((stream stream-mixin))
-  nil)
-
 ;;; output stream
 
 (defclass encode-stream (stream-mixin fundamental-binary-output-stream trivial-gray-stream-mixin)
@@ -231,8 +213,7 @@ PENDING-P: True if not all BYTES were encoded"
                stream)
               ((:slots pbytes-end) encoder)
               (length (encode-length (+ pbytes-end (- end start)) finish)))
-    (declare (type encode-stream stream)
-             (type encoder encoder))
+    (declare (type encoder encoder))
     (when (or (null string)
               (< (length string) length))
       (setf string (make-string length :element-type 'base-char)))
@@ -453,17 +434,25 @@ PENDING-P: True if not all BYTES were encoded"
 ;;; input stream
 
 (defclass decode-stream (stream-mixin fundamental-binary-input-stream trivial-gray-stream-mixin)
-  ((underlying-stream :initarg :underlying-stream)
+  (underlying-stream
    decoder
    (string :initform +empty-string+)
    (buffer :initform +empty-bytes+)
    (buffer-end :initform 0)
    (single-byte-vector :initform (make-byte-vector 1))))
 
-(defmethod initialize-instance :after ((stream decode-stream) &key (scheme :original))
-  (with-slots (decoder)
+(defmethod initialize-instance :after ((stream decode-stream)
+                                       &key
+                                         (scheme :original)
+                                         ((:underlying-stream ustream))
+                                         (linebreak t))
+  (with-slots (underlying-stream decoder)
       stream
-    (setf decoder (make-decoder :scheme scheme))))
+    (setf decoder (make-decoder :scheme scheme)
+          underlying-stream (if linebreak
+                                (make-instance 'char-stripping-stream
+                                               :underlying-stream ustream)
+                                ustream))))
 
 (defmethod input-stream-p ((stream decode-stream))
   t)
