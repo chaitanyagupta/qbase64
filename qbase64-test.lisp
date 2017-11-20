@@ -2,26 +2,26 @@
 
 (defpackage #:qbase64-test
   (:use #:cl #:qbase64 #:fiveam)
-  (:import-from #:qbase64 #:octets #:make-octet-vector))
+  (:import-from #:qbase64 #:bytes #:make-byte-vector))
 
 (in-package #:qbase64-test)
 
 ;;; utils
 
-(defun external-encode (octets)
+(defun external-encode (bytes)
   (temporary-file:with-open-temporary-file (tmp :direction :output :element-type '(unsigned-byte 8))
-    (write-sequence octets tmp)
+    (write-sequence bytes tmp)
     (force-output tmp)
     (uiop:run-program `("base64" "-i" ,(namestring tmp)) :output '(:string :stripped t))))
 
 (let ((gen (gen-integer :min 0 :max 255)))
-  (defun random-octet ()
+  (defun random-byte ()
     (funcall gen)))
 
-(defun random-octets (size)
-  (let ((octets (make-octet-vector size)))
-    (dotimes (i size octets)
-      (setf (aref octets i) (random-octet)))))
+(defun random-bytes (size)
+  (let ((bytes (make-byte-vector size)))
+    (dotimes (i size bytes)
+      (setf (aref bytes i) (random-byte)))))
 
 ;;; encoder tests
 
@@ -29,18 +29,18 @@
 
 (in-suite encoder)
 
-(test octets-to-base64
+(test encode-bytes
   (dolist (size (list 0 1 2 3 4 5 6 7 8 9 10 100))
-    (let* ((octets (random-octets size))
-           (encoded (qbase64::octets-to-base64 octets))
-           (external-encoded (external-encode octets)))
+    (let* ((bytes (random-bytes size))
+           (encoded (qbase64::encode-bytes bytes))
+           (external-encoded (external-encode bytes)))
       (is (string= external-encoded encoded)
           "Failed for size ~A: Expected ~S for ~S, but got ~S"
-          size external-encoded octets encoded))))
+          size external-encoded bytes encoded))))
 
-(test output-stream-states
+(test encode-stream-states
   (with-output-to-string (s)
-    (let ((out (make-instance 'qbase64::base64-output-stream
+    (let ((out (make-instance 'qbase64::encode-stream
                               :underlying-stream s)))
       (is (open-stream-p out))
       (is (equalp (stream-element-type out) '(unsigned-byte 8)))
@@ -57,18 +57,18 @@
 
 (in-suite decoder)
 
-(test base64-to-octets
+(test decode-string
   (dolist (size (list 0 1 2 3 4 5 6 7 8 9 10 100))
-    (let* ((octets (random-octets size))
-           (string (external-encode octets))
-           (decoded (qbase64::base64-to-octets string)))
-      (is (equalp octets decoded)
+    (let* ((bytes (random-bytes size))
+           (string (external-encode bytes))
+           (decoded (qbase64::decode-string string)))
+      (is (equalp bytes decoded)
           "Failed for size ~A: Expected ~S for ~S, but got ~S"
-          size octets string decoded))))
+          size bytes string decoded))))
 
-(test input-stream-states
+(test decode-stream-states
   (with-input-from-string (s "AQID")
-    (let ((in (make-instance 'qbase64::base64-input-stream
+    (let ((in (make-instance 'qbase64::decode-stream
                              :underlying-stream s)))
       (is (open-stream-p in))
       (is (equalp (stream-element-type in) '(unsigned-byte 8)))

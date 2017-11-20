@@ -9,12 +9,12 @@
   `(defconstant ,name (if (boundp ',name) (symbol-value ',name) ,value)
      ,@(when doc (list doc))))
 
-(defun octets (&rest contents)
+(defun bytes (&rest contents)
   (make-array (length contents)
               :element-type '(unsigned-byte 8)
               :initial-contents contents))
 
-(defun make-octet-vector (size)
+(defun make-byte-vector (size)
   (make-array size :element-type '(unsigned-byte 8)))
 
 (bind::defbinding-form (:symbol-macrolet :use-values-p nil)
