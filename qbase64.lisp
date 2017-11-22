@@ -291,12 +291,6 @@ PENDING-P: True if not all BYTES were encoded"
 (define-constant +uri-reverse-set+
     (reverse-set +uri-set+))
 
-(defun decode-char/original (char)
-  (aref +original-reverse-set+ (char-code char)))
-
-(defun decode-char/uri (char)
-  (aref +uri-reverse-set+ (char-code char)))
-
 (defun decode-length (length)
   (* 3 (ceiling length 4)))
 
@@ -306,44 +300,53 @@ PENDING-P: True if not all BYTES were encoded"
                                  (end1 (length string))
                                  (start2 0)
                                  (end2 (length bytes)))
-    (((string simple-string) (bytes (simple-array (unsigned-byte 8))))
-     ((string string)        (bytes (simple-array (unsigned-byte 8))))
-     ((string simple-string) (bytes (array (unsigned-byte 8))))
-     ((string string)        (bytes (array (unsigned-byte 8))))
-     ((string string)        (bytes array)))
+    (((string simple-base-string) (bytes (simple-array (unsigned-byte 8))))
+     ((string simple-string)      (bytes (simple-array (unsigned-byte 8))))
+     ((string string)             (bytes (simple-array (unsigned-byte 8))))
+     ((string simple-string)      (bytes (array (unsigned-byte 8))))
+     ((string string)             (bytes (array (unsigned-byte 8))))
+     ((string string)             (bytes array)))
   (declare (type scheme scheme)
            (type positive-fixnum start1 end1 start2 end2))
   (declare (optimize speed))
-  (let* ((conv (ecase scheme
-                 (:original #'decode-char/original)
-                 (:uri #'decode-char/uri)))
+  (let* ((reverse-set (ecase scheme
+                        (:original +original-reverse-set+)
+                        (:uri +uri-reverse-set+)))
          (length1 (- end1 start1))
          (length2 (- end2 start2))
          (count (min (floor length1 4) (floor length2 3))))
-    (declare (type positive-fixnum length1 length2 count))
+    (declare (type positive-fixnum length1 length2 count)
+             (type (simple-array (unsigned-byte 8)) reverse-set))
     (when (zerop count)
       (return-from %decode-string (values start1 start2)))
-    (loop
-       for n of-type positive-fixnum below count
-       for i1 of-type positive-fixnum from start1 by 4
-       for i2 of-type positive-fixnum from start2 by 3
-       for first-byte of-type (unsigned-byte 8) = (funcall conv (char string i1))
-       for second-byte of-type (unsigned-byte 8) = (funcall conv (char string (+ i1 1)))
-       for third-byte of-type (unsigned-byte 8) = (funcall conv (char string (+ i1 2)))
-       for fourth-byte of-type (unsigned-byte 8) = (funcall conv (char string (+ i1 3)))
-       do (setf (aref bytes i2)       (logand #xff (logior (ash first-byte 2) (ash second-byte -4)))
-                (aref bytes (+ i2 1)) (logand #xff (logior (ash second-byte 4) (ash third-byte -2)))
-                (aref bytes (+ i2 2)) (logand #xff (logior (ash third-byte 6) fourth-byte)))
-       finally (return (values (the positive-fixnum (+ start1 (* n 4)))
-                               (the positive-fixnum
-                                    (+ start2 (- (* n 3)
-                                                 (if (eql +pad-char+ (char string (+ i1 2))) 1 0)
-                                                 (if (eql +pad-char+ (char string (+ i1 3))) 1 0)))))))))
+    (flet ((char-to-digit (char)
+             (aref reverse-set (char-code char))))
+      (declare (inline char-to-digit))
+      (the (values positive-fixnum positive-fixnum)
+           (loop
+              for n of-type positive-fixnum below count
+              for i1 of-type positive-fixnum from start1 by 4
+              for i2 of-type positive-fixnum from start2 by 3
+              for c1 = (char string i1)
+              for c2 = (char string (+ i1 1))
+              for c3 = (char string (+ i1 2))
+              for c4 = (char string (+ i1 3))
+              for d1 of-type (unsigned-byte 8) = (char-to-digit c1)
+              for d2 of-type (unsigned-byte 8) = (char-to-digit c2)
+              for d3 of-type (unsigned-byte 8) = (char-to-digit c3)
+              for d4 of-type (unsigned-byte 8) = (char-to-digit c4)
+              do (setf (aref bytes i2)       (logand #xff (logior (ash d1 2) (ash d2 -4)))
+                       (aref bytes (+ i2 1)) (logand #xff (logior (ash d2 4) (ash d3 -2)))
+                       (aref bytes (+ i2 2)) (logand #xff (logior (ash d3 6) d4)))
+              finally (return (values (+ start1 (* n 4))
+                                      (+ start2 (- (* n 3)
+                                                   (if (eql +pad-char+ c3) 1 0)
+                                                   (if (eql +pad-char+ c4) 1 0))))))))))
 
 (defstruct (decoder
              (:constructor %make-decoder))
   scheme
-  (pchars (make-string 0 :element-type 'base-char) :type (simple-array base-char))
+  (pchars (make-string 0 :element-type 'base-char) :type simple-base-string)
   (pchars-end 0))
 
 (defun make-decoder (&key (scheme :original))
