@@ -512,11 +512,12 @@ PENDING-P: True if not all BYTES were encoded"
           :eof
           (aref single-byte-vector 0)))))
 
-(defun decode-string (string &key (scheme :original))
+(defun decode-string (string &key (scheme :original) (linebreak t))
   (with-input-from-string (str-in string)
     (with-open-stream (in (make-instance 'decode-stream
                                          :underlying-stream str-in
-                                         :scheme scheme))
+                                         :scheme scheme
+                                         :linebreak linebreak))
       (let ((bytes (make-byte-vector (decode-length (length string)))))
         (make-array (read-sequence bytes in)
                     :element-type '(unsigned-byte 8)
