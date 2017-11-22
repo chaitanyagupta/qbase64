@@ -12,9 +12,17 @@
 
 ;;; alphabet
 
-(declaim (simple-string +original-set+ +uri-set+))
-(define-constant +original-set+ "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/")
-(define-constant +uri-set+ "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_")
+(declaim (simple-base-string +original-set+ +uri-set+))
+
+(define-constant +original-set+
+    (make-array (length #1="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/")
+                :element-type 'base-char
+                :initial-contents #1#))
+
+(define-constant +uri-set+
+    (make-array (length #1="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_")
+                :element-type 'base-char
+                :initial-contents #1#))
 
 (define-constant +pad-char+ #\=)
 (declaim (base-char +pad-char+))
@@ -32,16 +40,6 @@
            (ceiling length 3)
            (floor length 3))))
 
-(declaim (ftype (function (positive-fixnum) base-char) encode-byte/original))
-(defun encode-byte/original (byte)
-  (declare (optimize speed))
-  (char +original-set+ (logand #o77 byte)))
-
-(declaim (ftype (function (positive-fixnum) base-char) encode-byte/uri))
-(defun encode-byte/uri (byte)
-  (declare (optimize speed))
-  (char +uri-set+ (logand #o77 byte)))
-
 (defun/td %encode-bytes (bytes string &key
                                (scheme :original)
                                (encode-trailing-bytes t)
@@ -57,38 +55,42 @@
   (declare (type scheme scheme))
   (declare (type positive-fixnum start1 end1 start2 end2))
   (declare (optimize speed))
-  (loop
-     with conv = (ecase scheme
-                   (:original #'encode-byte/original)
-                   (:uri #'encode-byte/uri))
-     with length1 of-type positive-fixnum = (- end1 start1)
-     with length2 of-type positive-fixnum = (- end2 start2)
-     with count1 = (multiple-value-bind (count rem)
-                       (floor length1 3)
-                     (if encode-trailing-bytes
-                         (if (plusp rem) (1+ count) count)
-                         count))
-     with count2 = (floor length2 4)
-     for n of-type positive-fixnum below (min count1 count2)
-     for i1 of-type positive-fixnum from start1 by 3
-     for i2 of-type positive-fixnum from start2 by 4
-     for last-two-missing = (= (- end1 i1) 1)
-     for last-one-missing = (or last-two-missing (= (- end1 i1) 2))
-     for first of-type (unsigned-byte 8) = (aref bytes i1)
-     for second of-type (unsigned-byte 8) = (if last-two-missing 0 (aref bytes (+ i1 1)))
-     for third of-type (unsigned-byte 8) =  (if last-one-missing 0 (aref bytes (+ i1 2)))
-     do (setf (char string i2)        (funcall conv (ash first -2))
-              (char string (+ i2 1))  (funcall conv
-                                               (logior (ash first 4) (ash second -4)))
-              (char string (+ i2 2))  (if last-two-missing
-                                          +pad-char+
-                                          (funcall conv
-                                                   (logior (ash second 2) (ash third -6))))
-              (char string (+ i2 3)) (if last-one-missing
-                                         +pad-char+
-                                         (funcall conv third)))
-     finally (return (values (the positive-fixnum (min (+ start1 (* n 3)) end1))
-                             (the positive-fixnum (+ start2 (* n 4)))))))
+  (let ((set (ecase scheme
+               (:original +original-set+)
+               (:uri +uri-set+))))
+    (declare (type simple-base-string set))
+    (flet ((encode-byte (byte)
+             (char set (logand #o77 byte))))
+      (declare (inline encode-byte))
+      (loop
+         with length1 of-type positive-fixnum = (- end1 start1)
+         with length2 of-type positive-fixnum = (- end2 start2)
+         with count1 = (multiple-value-bind (count rem)
+                           (floor length1 3)
+                         (if encode-trailing-bytes
+                             (if (plusp rem) (1+ count) count)
+                             count))
+         with count2 = (floor length2 4)
+         for n of-type positive-fixnum below (min count1 count2)
+         for i1 of-type positive-fixnum from start1 by 3
+         for i2 of-type positive-fixnum from start2 by 4
+         for last-two-missing = (= (- end1 i1) 1)
+         for last-one-missing = (or last-two-missing (= (- end1 i1) 2))
+         for first of-type (unsigned-byte 8) = (aref bytes i1)
+         for second of-type (unsigned-byte 8) = (if last-two-missing 0 (aref bytes (+ i1 1)))
+         for third of-type (unsigned-byte 8) =  (if last-one-missing 0 (aref bytes (+ i1 2)))
+         do (setf (char string i2)        (encode-byte (ash first -2))
+                  (char string (+ i2 1))  (encode-byte
+                                           (logior (ash first 4) (ash second -4)))
+                  (char string (+ i2 2))  (if last-two-missing
+                                              +pad-char+
+                                              (encode-byte
+                                               (logior (ash second 2) (ash third -6))))
+                  (char string (+ i2 3)) (if last-one-missing
+                                             +pad-char+
+                                             (encode-byte third)))
+         finally (return (values (the positive-fixnum (min (+ start1 (* n 3)) end1))
+                                 (the positive-fixnum (+ start2 (* n 4)))))))))
 (defstruct (encoder
              (:constructor %make-encoder))
   (scheme :original :type scheme)
