@@ -296,6 +296,15 @@ PENDING-P: True if not all BYTES were encoded"
 (defun decode-length (length)
   (* 3 (ceiling length 4)))
 
+(declaim (inline whitespace-p))
+(defun whitespace-p (c)
+  "Returns T for a whitespace character."
+  (declare (type character c))
+  (declare (optimize speed))
+  (or (char= c #\Newline) (char= c #\Space)
+      (char= c #\Linefeed) (char= c #\Return)
+      (char= c #\Tab)))
+
 (defun/td %decode-string (string bytes &key
                                  (scheme :original)
                                  (start1 0)
@@ -305,7 +314,6 @@ PENDING-P: True if not all BYTES were encoded"
     (((string simple-base-string) (bytes (simple-array (unsigned-byte 8))))
      ((string simple-string)      (bytes (simple-array (unsigned-byte 8))))
      ((string string)             (bytes (simple-array (unsigned-byte 8))))
-     ((string simple-string)      (bytes (array (unsigned-byte 8))))
      ((string string)             (bytes (array (unsigned-byte 8))))
      ((string string)             (bytes array)))
   (declare (type scheme scheme)
@@ -314,36 +322,47 @@ PENDING-P: True if not all BYTES were encoded"
   (let* ((reverse-set (ecase scheme
                         (:original +original-reverse-set+)
                         (:uri +uri-reverse-set+)))
-         (length1 (- end1 start1))
-         (length2 (- end2 start2))
-         (count (min (floor length1 4) (floor length2 3))))
-    (declare (type positive-fixnum length1 length2 count)
-             (type (simple-array (unsigned-byte 8)) reverse-set))
-    (when (zerop count)
-      (return-from %decode-string (values start1 start2)))
-    (flet ((char-to-digit (char)
-             (aref reverse-set (char-code char))))
-      (declare (inline char-to-digit))
+         (i1 start1)
+         (i2 start2))
+    (declare (type (simple-array (unsigned-byte 8)) reverse-set))
+    (declare (type positive-fixnum i1 i2))
+    (flet ((next-char ()
+             (loop
+                for char = (when (< i1 end1) (char string i1))
+                do (incf i1)
+                while (and char (whitespace-p char))
+                finally (return char)))
+           (char-to-digit (char)
+             (declare (type (or null character) char))
+             (if char (aref reverse-set (char-code char)) 0)))
+      (declare (inline next-char char-to-digit))
       (the (values positive-fixnum positive-fixnum)
            (loop
-              for n of-type positive-fixnum below count
-              for i1 of-type positive-fixnum from start1 by 4
-              for i2 of-type positive-fixnum from start2 by 3
-              for c1 = (char string i1)
-              for c2 = (char string (+ i1 1))
-              for c3 = (char string (+ i1 2))
-              for c4 = (char string (+ i1 3))
+              with padded = nil
+              for i1-begin of-type positive-fixnum = i1
+              for i2-begin of-type positive-fixnum = i2
+              for c1 of-type (or null character) = (next-char)
+              for c2 of-type (or null character) = (next-char)
+              for c3 of-type (or null character) = (next-char)
+              for c4 of-type (or null character) = (next-char)
               for d1 of-type (unsigned-byte 8) = (char-to-digit c1)
               for d2 of-type (unsigned-byte 8) = (char-to-digit c2)
               for d3 of-type (unsigned-byte 8) = (char-to-digit c3)
               for d4 of-type (unsigned-byte 8) = (char-to-digit c4)
+              for encode-group = (and c4 (<= (+ i2 3) end2))
+              if encode-group
               do (setf (aref bytes i2)       (logand #xff (logior (ash d1 2) (ash d2 -4)))
                        (aref bytes (+ i2 1)) (logand #xff (logior (ash d2 4) (ash d3 -2)))
-                       (aref bytes (+ i2 2)) (logand #xff (logior (ash d3 6) d4)))
-              finally (return (values (+ start1 (* n 4))
-                                      (+ start2 (- (* n 3)
-                                                   (if (eql +pad-char+ c3) 1 0)
-                                                   (if (eql +pad-char+ c4) 1 0))))))))))
+                       (aref bytes (+ i2 2)) (logand #xff (logior (ash d3 6) d4))
+                       i2 (+ i2 3)
+                       padded (char= +pad-char+ c4))
+              while (and encode-group (< i1 end1) (not padded))
+              finally
+                (return (values (if encode-group i1 i1-begin)
+                                (cond ((not encode-group) i2-begin)
+                                      ((char= +pad-char+ c3) (+ i2-begin 1))
+                                      ((char= +pad-char+ c4) (+ i2-begin 2))
+                                      (t i2)))))))))
 
 (defstruct (decoder
              (:constructor %make-decoder))
@@ -353,6 +372,30 @@ PENDING-P: True if not all BYTES were encoded"
 
 (defun make-decoder (&key (scheme :original))
   (%make-decoder :scheme scheme))
+
+(defun resize-pchars (pchars pchars-end new-length)
+  (if (< (length pchars) new-length)
+      (let ((new-pchars (make-string (least-multiple-upfrom 4 new-length)
+                                     :element-type 'base-char)))
+        (replace new-pchars pchars :end2 pchars-end))
+      pchars))
+
+(defun fill-pchars (decoder string &key (start 0) (end (length string)))
+  (let ((pchars (decoder-pchars decoder))
+        (pchars-end (decoder-pchars-end decoder)))
+    (setf pchars (resize-pchars pchars pchars-end (+ pchars-end (- end start))))
+    (loop
+       with i = pchars-end
+       with j = start
+       while (and (< i (length pchars)) (< j end))
+       for char = (char string j)
+       if (not (whitespace-p char))
+       do (setf (char pchars i) char) (incf i)
+       do (incf j)
+       finally
+         (setf (decoder-pchars decoder) pchars
+               (decoder-pchars-end decoder) i)
+         (return j))))
 
 (defun decode (decoder string bytes &key
                                       (start1 0)
@@ -367,47 +410,24 @@ PENDING-P: True if not all BYTES were encoded"
               ((:symbol-macrolet len1) (- end1 start1)))
     (declare (type simple-string pchars))
     (declare (type positive-fixnum pchars-end))
+
     ;; decode PCHARS first
     (when (plusp pchars-end)
-      (let ((bytes-to-copy (min (rem (- 4 (rem pchars-end 4)) 4)
-                                len1)))
-        (replace pchars string
-                 :start1 pchars-end
-                 :end1 (incf pchars-end bytes-to-copy)
-                 :start2 0
-                 :end2 bytes-to-copy)
-        (incf start1 bytes-to-copy)
-        (multiple-value-bind (pos1 pos2)
-            (%decode-string pchars bytes
-                            :scheme scheme
-                            :start1 0
-                            :end1 pchars-end
-                            :start2 start2
-                            :end2 end2)
-          (setf start2 pos2)
-          (when (< pos1 pchars-end)
-            (let* ((new-pchars-length (+ (- pchars-end pos1) len1))
-                   (new-pchars (if (<= new-pchars-length (length pchars))
-                                   pchars
-                                   (make-string (least-multiple-upfrom 4 new-pchars-length)
-                                                :element-type 'base-char))))
-              (declare (type positive-fixnum new-pchars-length))
-              (replace new-pchars pchars
-                       :start2 pos1
-                       :end2 pchars-end)
-              (replace new-pchars string
-                       :start1 (- pchars-end pos1)
-                       :start2 start1
-                       :end2 end1)
-              (setf pchars new-pchars
-                    pchars-end new-pchars-length)
-              (return-from decode (values pos2 t)))))))
-
-    ;; If STRING is not given
-    (when (zerop len1)
-      (setf pchars +empty-string+
-            pchars-end 0)
-      (return-from decode (values start2 nil)))
+      (setf start1 (fill-pchars decoder string
+                                :start start1 :end end1))
+      (multiple-value-bind (pos1 pos2)
+          (%decode-string pchars bytes
+                          :scheme scheme
+                          :start1 0 :end1 pchars-end
+                          :start2 start2 :end2 end2)
+        (when (< pos1 pchars-end)
+          ;; no more decoding can be done at this point, shift
+          ;; remaining PCHARS left, slurp STRING and return
+          (replace pchars pchars :start2 pos1 :end2 pchars-end)
+          (decf pchars-end pos1)
+          (fill-pchars decoder string :start start1 :end end1)
+          (return-from decode (values pos2 t)))
+        (setf pchars-end 0 start2 pos2)))
 
     ;; Decode STRING now
     (multiple-value-bind (pos1 pos2)
@@ -418,46 +438,23 @@ PENDING-P: True if not all BYTES were encoded"
                         :start2 start2
                         :end2 end2)
       (when (< pos1 end1)
-        (let* ((new-pchars-length (- end1 pos1))
-               (new-pchars (if (<= new-pchars-length (length pchars))
-                               pchars
-                               (make-string (least-multiple-upfrom 4 new-pchars-length)
-                                            :element-type 'base-char))))
-          (declare (type positive-fixnum new-pchars-length))
-          (replace new-pchars string
-                   :start2 pos1
-                   :end2 end1)
-          (setf pchars new-pchars
-                pchars-end new-pchars-length)
-          (return-from decode (values pos2 t))))
-
-      ;; All chars encoded
-      (setf pchars +empty-string+
-            pchars-end 0)
-      (return-from decode (values pos2 nil)))))
+        (fill-pchars decoder string :start pos1 :end end1))
+      (values pos2 (plusp pchars-end)))))
 
 ;;; input stream
 
 (defclass decode-stream (stream-mixin fundamental-binary-input-stream trivial-gray-stream-mixin)
-  (underlying-stream
+  ((underlying-stream :initarg :underlying-stream)
    decoder
    (string :initform +empty-string+)
-   (buffer :initform +empty-bytes+)
+   (buffer :initform (make-byte-vector 3))
    (buffer-end :initform 0)
    (single-byte-vector :initform (make-byte-vector 1))))
 
-(defmethod initialize-instance :after ((stream decode-stream)
-                                       &key
-                                         (scheme :original)
-                                         ((:underlying-stream ustream))
-                                         (linebreak t))
+(defmethod initialize-instance :after ((stream decode-stream) &key (scheme :original))
   (with-slots (underlying-stream decoder)
       stream
-    (setf decoder (make-decoder :scheme scheme)
-          underlying-stream (if linebreak
-                                (make-instance 'char-stripping-stream
-                                               :underlying-stream ustream)
-                                ustream))))
+    (setf decoder (make-decoder :scheme scheme))))
 
 (defmethod input-stream-p ((stream decode-stream))
   t)
@@ -465,49 +462,49 @@ PENDING-P: True if not all BYTES were encoded"
 (defmethod stream-element-type ((stream decode-stream))
   '(unsigned-byte 8))
 
+(defun write-buffer-to-sequence (stream sequence start end)
+  (let ((buffer (slot-value stream 'buffer))
+        (buffer-end (slot-value stream 'buffer-end)))
+    (if (plusp buffer-end)
+        (let ((bytes-copied (min (- end start) buffer-end)))
+          (replace sequence buffer
+                   :start1 start :end1 end
+                   :start2 0 :end2 buffer-end)
+          (replace buffer buffer
+                   :start2 bytes-copied :end2 buffer-end)
+          (decf (slot-value stream 'buffer-end) bytes-copied)
+          (+ start bytes-copied))
+        start)))
+
 (defmethod stream-read-sequence ((stream decode-stream) sequence start end &key)
   (when (null end)
     (setf end (length sequence)))
   (bind:bind (((:slots decoder string underlying-stream buffer buffer-end) stream)
               ((:slots pchars-end) decoder)
-              ((:symbol-macrolet length) (- end start))
-              (string-end (- (encode-length (max 0 (- length buffer-end)) t) pchars-end)))
-    (when (plusp buffer-end)
-      (let ((bytes-copied (min length buffer-end)))
-        (replace sequence buffer
-                 :start1 start :end1 end
-                 :start2 0 :end2 buffer-end)
-        (replace buffer buffer
-                 :start2 bytes-copied
-                 :end2 buffer-end)
-        (decf buffer-end bytes-copied)
-        (incf start bytes-copied)))
-    (when (< (length string) string-end)
-      (setf string (make-string string-end :element-type 'base-char)))
-    (bind:bind ((end1 (read-sequence string underlying-stream :end string-end))
-                ((:values pos2 pendingp)
-                 (decode decoder string sequence
-                         :end1 end1
-                         :start2 start
-                         :end2 end)))
-      (when (and (< pos2 end) pendingp)
-        (bind:bind ((remaining-length (- end pos2))
-                    (buffer-length (least-multiple-upfrom 3 remaining-length))
-                    (new-buffer (if (> buffer-length (length buffer))
-                                    (make-byte-vector buffer-length)
-                                    buffer))
-                    (buffer-pos (decode decoder +empty-string+ new-buffer :end2 buffer-length))
-                    (bytes-copied (min remaining-length buffer-pos)))
-          (replace sequence new-buffer
-                   :start1 pos2 :end1 end
-                   :start2 0 :end2 buffer-pos)
-          (replace new-buffer new-buffer
-                   :start2 bytes-copied
-                   :end2 buffer-pos)
-          (setf buffer new-buffer
-                buffer-end (- buffer-pos bytes-copied))
-          (incf pos2 bytes-copied)))
-      pos2)))
+              ((:symbol-macrolet length) (- end start)))
+    (loop
+       with eof = nil
+       while (and (< start end) (not eof))
+       do
+         (setf start (write-buffer-to-sequence stream sequence start end))
+       when (< start end)
+       do
+         (let ((string-end (encode-length length t)))
+           (when (< (length string) string-end)
+             (setf string (make-string string-end)))
+           (bind:bind ((end1 (read-sequence string underlying-stream :end string-end))
+                       ((:values pos2 pendingp)
+                        (decode decoder string sequence
+                                :end1 end1
+                                :start2 start
+                                :end2 end)))
+             (setf eof (and (zerop end1) (< end1 string-end)))
+             (when (and (< pos2 end) pendingp)
+               (setf buffer-end (decode decoder +empty-string+ buffer
+                                        :start2 buffer-end))
+               (setf pos2 (write-buffer-to-sequence stream sequence pos2 end)))
+             (setf start pos2)))
+       finally (return start))))
 
 (defmethod stream-read-byte ((stream decode-stream))
   (with-slots (single-byte-vector)
@@ -517,12 +514,11 @@ PENDING-P: True if not all BYTES were encoded"
           :eof
           (aref single-byte-vector 0)))))
 
-(defun decode-string (string &key (scheme :original) (linebreak t))
+(defun decode-string (string &key (scheme :original))
   (with-input-from-string (str-in string)
     (with-open-stream (in (make-instance 'decode-stream
                                          :underlying-stream str-in
-                                         :scheme scheme
-                                         :linebreak linebreak))
+                                         :scheme scheme))
       (let ((bytes (make-byte-vector (decode-length (length string)))))
         (make-array (read-sequence bytes in)
                     :element-type '(unsigned-byte 8)
