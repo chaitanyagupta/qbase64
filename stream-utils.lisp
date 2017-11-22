@@ -22,7 +22,6 @@
 
 (defclass char-stripping-stream (stream-mixin fundamental-character-input-stream trivial-gray-stream-mixin)
   ((underlying-stream :initarg :underlying-stream)
-   (strip-char :initform #\Newline :initarg :strip-char)
    (buffer)
    (buffer-start :initform 0)
    (buffer-end :initform 0)))
@@ -40,14 +39,14 @@
   (stream-element-type (slot-value stream 'underlying-stream)))
 
 (defmethod stream-read-char ((stream char-stripping-stream))
-  (bind:bind (((:slots underlying-stream buffer strip-char buffer-start buffer-end)
+  (bind:bind (((:slots underlying-stream buffer buffer-start buffer-end)
                stream)
               ((:symbol-macrolet buffer-length) (- buffer-end buffer-start)))
     (when (plusp buffer-length)
       (loop
          for i from buffer-start below buffer-end
          for char = (char buffer i)
-         while (char= char strip-char)
+         while (whitespace-p char)
          finally (if (= i buffer-end)
                      (setf buffer-start 0 buffer-end 0)
                      (progn
@@ -55,7 +54,7 @@
                        (return-from stream-read-char char)))))
     (loop
        for char = (read-char underlying-stream nil :eof)
-       while (and (characterp char) (char= char strip-char))
+       while (and (characterp char) (whitespace-p char))
        finally (return char))))
 
 (defun copy-array (array length)
@@ -81,13 +80,21 @@
        (setf (char buffer 0) char)))
     nil))
 
+(declaim (inline whitespace-p))
+(defun whitespace-p (c)
+  "Returns T for a whitespace character."
+  (declare (type character c))
+  (the boolean
+       (or (char= c #\Newline) (char= c #\Linefeed)
+           (char= c #\Return) (char= c #\Space)
+           (char= c #\Tab))))
+
 (defmethod stream-read-sequence ((stream char-stripping-stream) string start end &key)
   (declare (type char-stripping-stream stream)
            (type string string)
            (type positive-fixnum start end))
   (declare (optimize speed))
-  (bind:bind ((strip-char (slot-value stream 'strip-char))
-              (buffer (slot-value stream 'buffer))
+  (bind:bind ((buffer (slot-value stream 'buffer))
               (underlying-stream (slot-value stream 'underlying-stream))
               (buffer-start (slot-value stream 'buffer-start))
               (buffer-end (slot-value stream 'buffer-end))
@@ -106,7 +113,7 @@
                  with j of-type positive-fixnum = start
                  while (and (< i buffer-end) (< j end))
                  for buffer-char = (char buffer i)
-                 if (char/= buffer-char strip-char)
+                 if (not (whitespace-p buffer-char))
                  do
                    (setf (char string j) buffer-char)
                    (incf j)
