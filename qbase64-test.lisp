@@ -27,9 +27,7 @@
 
 (def-suite encoder)
 
-(in-suite encoder)
-
-(test encode-bytes
+(test (encode-bytes :suite encoder)
   (dolist (size (list 0 1 2 3 4 5 6 7 8 9 10 100))
     (let* ((bytes (random-bytes size))
            (encoded (qbase64:encode-bytes bytes))
@@ -38,7 +36,7 @@
           "Failed for size ~A: Expected ~S for ~S, but got ~S"
           size external-encoded bytes encoded))))
 
-(test encode-stream-states
+(test (encode-stream-states :suite encoder)
   (with-output-to-string (s)
     (let ((out (make-instance 'qbase64:encode-stream
                               :underlying-stream s)))
@@ -55,9 +53,7 @@
 
 (def-suite decoder)
 
-(in-suite decoder)
-
-(test decode-string
+(test (decode-string :suite decoder)
   (dolist (size (list 0 1 2 3 4 5 6 7 8 9 10 100))
     (let* ((bytes (random-bytes size))
            (string (external-encode bytes))
@@ -66,7 +62,7 @@
           "Failed for size ~A: Expected ~S for ~S, but got ~S"
           size bytes string decoded))))
 
-(test decode-stream-states
+(test (decode-stream-states :suite decoder)
   (with-input-from-string (s "AQID")
     (let ((in (make-instance 'qbase64:decode-stream
                              :underlying-stream s)))
