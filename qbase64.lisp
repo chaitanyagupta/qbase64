@@ -380,15 +380,26 @@ PENDING-P: True if not all BYTES were encoded"
         (replace new-pchars pchars :end2 pchars-end))
       pchars))
 
-(defun fill-pchars (decoder string &key (start 0) (end (length string)))
+(defun/td fill-pchars (decoder string &key (start 0) (end (length string)))
+    (((string simple-base-string))
+     ((string simple-string))
+     ((string string)))
+  (declare (type decoder decoder)
+           (type string string)
+           (type positive-fixnum start end))
+  (declare (optimize speed))
   (let ((pchars (decoder-pchars decoder))
         (pchars-end (decoder-pchars-end decoder)))
-    (setf pchars (resize-pchars pchars pchars-end (+ pchars-end (- end start))))
+    (declare (type simple-base-string pchars)
+             (type positive-fixnum pchars-end))
+    (setf pchars (resize-pchars pchars pchars-end (the positive-fixnum
+                                                       (+ pchars-end
+                                                          (- end start)))))
     (loop
-       with i = pchars-end
-       with j = start
+       with i of-type positive-fixnum = pchars-end
+       with j of-type positive-fixnum = start
        while (and (< i (length pchars)) (< j end))
-       for char = (char string j)
+       for char of-type character = (char string j)
        if (not (whitespace-p char))
        do (setf (char pchars i) char) (incf i)
        do (incf j)
