@@ -128,8 +128,8 @@ PENDING-P: True if not all BYTES were encoded"
         (replace pbytes bytes
                  :start1 pbytes-end
                  :end1 (incf pbytes-end bytes-to-copy)
-                 :start2 0
-                 :end2 bytes-to-copy)
+                 :start2 start1
+                 :end2 (+ start1 bytes-to-copy))
         (incf start1 bytes-to-copy))
       ;; Then encode PBYTES
       (multiple-value-bind (pos1 pos2)
@@ -192,7 +192,7 @@ PENDING-P: True if not all BYTES were encoded"
 (defclass encode-stream (stream-mixin fundamental-binary-output-stream trivial-gray-stream-mixin)
   ((underlying-stream :initarg :underlying-stream)
    encoder
-   (string :initform nil)
+   (string :initform +empty-string+)
    (single-byte-vector :initform (make-byte-vector 1))
    (linebreak :initform 0 :initarg :linebreak)
    (column :initform 0)))
@@ -216,26 +216,26 @@ PENDING-P: True if not all BYTES were encoded"
               ((:slots pbytes-end) encoder)
               (length (encode-length (+ pbytes-end (- end start)) finish)))
     (declare (type encoder encoder))
-    (when (or (null string)
-              (< (length string) length))
+    (when (< (length string) length)
       (setf string (make-string length :element-type 'base-char)))
     ;; TODO: what happens when STRING size is fixed
     (multiple-value-bind (pos2 pendingp)
         (encode encoder sequence string :start1 start :end1 end :finish finish)
       (declare (ignore pendingp))
-      (if (plusp linebreak)
-          (loop
-             for line-start = start then line-end
-             for line-end = (min pos2 (+ line-start (- linebreak column)))
-             do
-               (write-string string underlying-stream
-                             :start line-start
-                             :end line-end)
-               (setf column (rem (+ column (- line-end line-start)) linebreak))
-               (when (and (zerop column) (> line-end line-start))
-                 (write-char #\Newline underlying-stream))
-             while (< line-end pos2))
-          (write-string string underlying-stream :end pos2)))
+      (when (plusp pos2)
+        (if (plusp linebreak)
+            (loop
+               for line-start = 0 then line-end
+               for line-end = (min pos2 (+ line-start (- linebreak column)))
+               do
+                 (write-string string underlying-stream
+                               :start line-start
+                               :end line-end)
+                 (setf column (rem (+ column (- line-end line-start)) linebreak))
+                 (when (and (zerop column) (> line-end line-start))
+                   (write-char #\Newline underlying-stream))
+               while (< line-end pos2))
+            (write-string string underlying-stream :end pos2))))
     sequence))
 
 (defmethod stream-write-sequence ((stream encode-stream) sequence start end &key)
