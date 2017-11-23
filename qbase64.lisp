@@ -526,11 +526,12 @@ PENDING-P: True if not all BYTES were encoded"
           (aref single-byte-vector 0)))))
 
 (defun decode-string (string &key (scheme :original))
-  (with-input-from-string (str-in string)
-    (with-open-stream (in (make-instance 'decode-stream
-                                         :underlying-stream str-in
-                                         :scheme scheme))
-      (let ((bytes (make-byte-vector (decode-length (length string)))))
-        (make-array (read-sequence bytes in)
-                    :element-type '(unsigned-byte 8)
-                    :displaced-to bytes)))))
+  (let ((bytes (make-byte-vector (decode-length (length string))))
+        (decoder (make-decoder :scheme scheme)))
+    (multiple-value-bind (pos2 pendingp)
+        (decode decoder string bytes)
+      (when pendingp
+        (error "Input base64 string was not complete"))
+      (make-array pos2
+                  :element-type '(unsigned-byte 8)
+                  :displaced-to bytes))))
