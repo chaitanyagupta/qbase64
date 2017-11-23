@@ -267,11 +267,12 @@ PENDING-P: True if not all BYTES were encoded"
   (declare (ignore abort))
   (flush-pending-bytes stream))
 
-(defun encode-bytes (bytes &key (scheme :original))
+(defun encode-bytes (bytes &key (scheme :original) (linebreak 0))
   (with-output-to-string (str)
     (with-open-stream (out (make-instance 'encode-stream
                                           :scheme scheme
-                                          :underlying-stream str))
+                                          :underlying-stream str
+                                          :linebreak linebreak))
       (write-sequence bytes out))))
 
 ;;; decode
