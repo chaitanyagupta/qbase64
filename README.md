@@ -25,6 +25,7 @@ decoding:
   - [Decoding](#decoding)
   - [Advanced](#advanced)
 - [Limits](#limits)
+- [Performance](#performance)
 - [Additional Features](#additional-features)
   - [Encoding Schemes](#encoding-schemes)
   - [Linebreaks](#linebreaks)
@@ -165,6 +166,15 @@ performance. Consequently, it asserts the following:
 
 * Max length of the string that is used as encoding output or decoding
   input should never exceed `+MAX-STRING-LENGTH+`.
+
+## Performance
+
+Encoding and decoding should be very fast under these conditions:
+
+* The byte array is a `SIMPLE-ARRAY` of element type `(UNSIGNED-BYTE 8)`.
+
+* The string is a `SIMPLE-STRING`. Theoretically `SIMPLE-BASE-STRING`
+  should be even faster.
 
 ## Additional Features
 
