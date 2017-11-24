@@ -2,15 +2,13 @@
 
 (in-package #:qbase64)
 
-;;; constants
+;;; types and constants
 
 (declaim ((array (unsigned-byte 8)) +empty-bytes+))
 (define-constant +empty-bytes+ (make-byte-vector 0))
 
 (declaim (simple-base-string +empty-string+))
 (define-constant +empty-string+ (make-string 0 :element-type 'base-char))
-
-;;; alphabet
 
 (declaim (simple-base-string +original-set+ +uri-set+))
 
@@ -30,8 +28,6 @@
 (deftype scheme ()
   '(member :original :uri))
 
-;;; encode
-
 (declaim (ftype (function (positive-fixnum t) positive-fixnum) encode-length))
 (defun encode-length (length encode-trailing-bytes)
   (declare (type positive-fixnum length))
@@ -39,6 +35,20 @@
   (* 4 (if encode-trailing-bytes
            (ceiling length 3)
            (floor length 3))))
+
+(declaim (ftype (function (positive-fixnum) positive-fixnum) decode-length))
+(defun decode-length (length)
+  (declare (type positive-fixnum length))
+  (declare (optimize speed))
+  (* 3 (ceiling length 4)))
+
+(define-constant +max-bytes-length+ (- (decode-length most-positive-fixnum) 3)
+  "Max length of the byte array that is used as encoding input or decoding output")
+
+(define-constant +max-string-length+ most-positive-fixnum
+  "Max length of the string that is used as encoding output or decoding input")
+
+;;; encode
 
 (defun/td %encode-bytes (bytes string &key
                                (scheme :original)
@@ -160,6 +170,12 @@ Returns POSITION, PENDINGP.
            (type array bytes)
            (type string string)
            (type positive-fixnum start1 end1 start2 end2))
+  (assert (<= end1 +max-bytes-length+) ()
+          "Length of BYTES should be less than ~A, given ~A"
+          +max-bytes-length+ end1)
+  (assert (<= end2 +max-string-length+) ()
+          "Length of STRING should be less than ~A, given ~A"
+          +max-string-length+ end2)
   (bind:bind (((:slots scheme pbytes pbytes-end finish-p) encoder)
               ((:symbol-macrolet len1) (- end1 start1)))
     (when (and (plusp len1) finish-p)
@@ -367,9 +383,6 @@ CLOSE is invoked."))
 (define-constant +uri-reverse-set+
     (reverse-set +uri-set+))
 
-(defun decode-length (length)
-  (* 3 (ceiling length 4)))
-
 (declaim (inline whitespace-p))
 (defun whitespace-p (c)
   "Returns T for a whitespace character."
@@ -537,6 +550,12 @@ Returns POSITION, PENDINGP.
            (type string string)
            (type array bytes)
            (type positive-fixnum start1 end1 start2 end2))
+  (assert (<= end1 +max-string-length+) ()
+          "Length of STRING should be less than ~A, given ~A"
+          +max-string-length+ end1)
+  (assert (<= end2 +max-bytes-length+) ()
+          "Length of BYTES should be less than ~A, given ~A"
+          +max-bytes-length+ end2)
   (bind:bind (((:slots scheme pchars pchars-end) decoder)
               ((:symbol-macrolet len1) (- end1 start1)))
     (declare (type simple-string pchars))

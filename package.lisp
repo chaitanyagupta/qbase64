@@ -3,6 +3,8 @@
 (defpackage #:qbase64
   (:use #:cl #:trivial-gray-streams)
   (:export
+   #:+max-bytes-length+
+   #:+max-string-length+
    ;; encode
    #:encoder
    #:make-encoder

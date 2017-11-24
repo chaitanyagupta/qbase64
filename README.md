@@ -134,6 +134,17 @@ Note that running the following examples requires
 ; #()
 ```
 
+## Limits
+
+The library relies on fixnum arithmetic to achieve good
+performance. Consequently, it asserts the following:
+
+* Max length of the byte array that is used as encoding input or
+  decoding output should never exceed `+MAX-BYTES-LENGTH+`.
+
+* Max length of the string that is used as encoding output or decoding
+  input should never exceed `+MAX-STRING-LENGTH+`.
+
 ## More Features
 
 ### Encoding Schemes
