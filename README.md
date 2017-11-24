@@ -14,7 +14,27 @@ decoding:
 * `ENCODER` and `DECODER` provide the low level interface. The other
   interfaces are built on top of these.
 
-## Encoding (simple)
+## Table of Contents
+
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
+
+- [Usage](#usage)
+  - [Encoding](#encoding)
+  - [Decoding](#decoding)
+  - [Advanced](#advanced)
+- [Limits](#limits)
+- [Additional Features](#additional-features)
+  - [Encoding Schemes](#encoding-schemes)
+  - [Linebreaks](#linebreaks)
+- [API Reference](#api-reference)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
+## Usage
+
+### Encoding
 
 The examples below use `ENCODE-BYTES` and `ENCODE-STREAM`.
 
@@ -35,7 +55,7 @@ The examples below use `ENCODE-BYTES` and `ENCODE-STREAM`.
 ; => "AQIDBAUGBwg="
 ```
 
-## Decoding (simple)
+### Decoding
 
 The examples below use `DECODE-STRING` and `DECODE-STREAM`.
 
@@ -62,7 +82,7 @@ The examples below use `DECODE-STRING` and `DECODE-STREAM`.
 ; #() 
 ```
 
-## Advanced encoding and decoding
+### Advanced
 
 Normally you wouldn't need to use `ENCODER` and `DECODER` directly,
 but if you do (say you want more control over memory management), you
@@ -145,7 +165,7 @@ performance. Consequently, it asserts the following:
 * Max length of the string that is used as encoding output or decoding
   input should never exceed `+MAX-STRING-LENGTH+`.
 
-## More Features
+## Additional Features
 
 ### Encoding Schemes
 
