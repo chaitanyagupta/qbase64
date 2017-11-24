@@ -2,6 +2,7 @@
 
 (asdf:defsystem #:qbase64
   :description "Fast and flexible base64 encoder and decoder"
+  :version "0.1.0"
   :author "Chaitanya Gupta <mail@chaitanyagupta.com>"
   :license "BSD-3-Clause"
   :serial t
