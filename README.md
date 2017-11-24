@@ -156,10 +156,15 @@ Note that running the following examples requires
 ; #()
 ```
 
-## Limits
+## Limits and Assertions
 
-The library relies on fixnum arithmetic to achieve good
-performance. Consequently, it asserts the following:
+The library relies on `(UNSIGNED-BYTE 8)` and fixnum arithmetic to
+achieve good performance. Consequently,
+
+* When providing bytes for encoding, ensure that each byte is of type
+  `(UNSIGNED-BYTE 8)`. Although the `ARRAY-ELEMENT-TYPE` of the byte
+  array can be `T`, the elements themselves must conform to this
+  restriction.
 
 * Max length of the byte array that is used as encoding input or
   decoding output should never exceed `+MAX-BYTES-LENGTH+`.
