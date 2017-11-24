@@ -95,12 +95,17 @@
                                 (+ start2 (* n 4)))))))))
 (defstruct (encoder
              (:constructor %make-encoder))
+  "Use an ENCODER to encode bytes to string. Create an encoder using
+MAKE-ENCODER, then start encoding bytes using ENCODE."
   (scheme :original :type scheme)
   (pbytes +empty-bytes+ :type (simple-array (unsigned-byte 8)))
   (pbytes-end 0 :type positive-fixnum)
   finish-p)
 
 (defun make-encoder (&key (scheme :original))
+  "Creates an ENCODER.
+
+  SCHEME: The base64 encoding scheme to use. Can be :ORIGINAL or :URI"
   (%make-encoder :scheme scheme))
 
 (defun encode (encoder bytes string &key
@@ -109,10 +114,48 @@
                                       (start2 0)
                                       (end2 (length string))
                                       finish)
-  "Returns POSITION, PENDING-P.
+  "Encodes given BYTES and writes the resultant chars to STRING.
 
-POSITION: First index of STRING that wasn't updated
-PENDING-P: True if not all BYTES were encoded"
+  ENCODER: The encoder
+
+  BYTES: Should be a single-dimentional array of (UNSIGNED-BYTE 8)
+  elements.
+
+  STRING: The encoded characters are written into this string.
+
+  START1, END1: Bounds for BYTES
+
+  START2, END2: Bounds for STRING
+
+  FINISH: Padding characters are output if required, and no new bytes
+  can be accepted until all the pending bytes are written out.
+
+It is not necessary that all of BYTES are encoded in one go. For
+example,
+
+* There may not be enough space left in STRING
+
+* FINISH is not true and the cumulative length of all the bytes given
+  till now is not a multiple of 3 (base64 encoding works on groups of
+  three bytes).
+
+In these cases, as much as possible BYTES are encoded and the
+resultant chars written into STRING, the remaining bytes are copied to
+an internal buffer by the encoder and used the next time DECODE is
+called. Also, the second value returned (called PENDINGP, see below)
+is set to true.
+
+If FINISH is true but cumulative length of all the BYTES is not a
+multiple of 3, padding characters are written into STRING.
+
+ENCODE can be given an empty BYTES array in which case the internal
+buffer is encoded as much as possible.
+
+Returns POSITION, PENDINGP.
+
+  POSITION: First index of STRING that wasn't updated
+
+  PENDINGP: True if not all BYTES were encoded"
   (declare (type encoder encoder)
            (type array bytes)
            (type string string)
@@ -197,7 +240,25 @@ PENDING-P: True if not all BYTES were encoded"
    (string :initform +empty-string+)
    (single-byte-vector :initform (make-byte-vector 1))
    (linebreak :initform 0 :initarg :linebreak)
-   (column :initform 0)))
+   (column :initform 0))
+  (:documentation
+   "A binary output stream that converts bytes to base64 characters
+  and writes them to an underlyihng character output stream.
+
+Create an ENCODE-STREAM using MAKE-INSTANCE. The following
+initialization keywords are provided:
+
+  UNDERLYING-STREAM: The underlying character output stream to which
+  base64 characters are written. Must be given.
+
+  SCHEME: The base64 encoding scheme to use. Must
+  be :ORIGINAL (default) or :URI.
+
+  LINEBREAK: If 0 (the default), no linebreaks are written. Otherwise
+  its value must be the max number of characters per line.
+
+Note that ENCODE-STREAM does not close the underlying stream when
+CLOSE is invoked."))
 
 (defmethod initialize-instance :after ((stream encode-stream) &key (scheme :original))
   (with-slots (encoder)
@@ -270,6 +331,16 @@ PENDING-P: True if not all BYTES were encoded"
   (flush-pending-bytes stream))
 
 (defun encode-bytes (bytes &key (scheme :original) (linebreak 0))
+  "Encode BYTES to base64 and return the string.
+
+  BYTES: Should be a single-dimentional array of (UNSIGNED-BYTE 8)
+  elements.
+
+  SCHEME: The base64 encoding scheme to use. Must
+  be :ORIGINAL (default) or :URI.
+
+  LINEBREAK: If 0 (the default), no linebreaks are written. Otherwise
+  its value must be the max number of characters per line."
   (with-output-to-string (str)
     (with-open-stream (out (make-instance 'encode-stream
                                           :scheme scheme
@@ -373,11 +444,17 @@ PENDING-P: True if not all BYTES were encoded"
 
 (defstruct (decoder
              (:constructor %make-decoder))
+  "Use a DECODER to decode base64 characters to bytes. Use
+MAKE-DECODER to create a decoder, then decode base64 chars using
+DECODE."
   scheme
   (pchars (make-string 0 :element-type 'base-char) :type simple-base-string)
   (pchars-end 0))
 
 (defun make-decoder (&key (scheme :original))
+  "Creates a DECODER.
+
+  SCHEME: The base64 encoding scheme to use. Can be :ORIGINAL or :URI"
   (%make-decoder :scheme scheme))
 
 (defun resize-pchars (pchars pchars-end new-length)
@@ -420,6 +497,42 @@ PENDING-P: True if not all BYTES were encoded"
                                       (end1 (length string))
                                       (start2 0)
                                       (end2 (length bytes)))
+  "Decodes the given STRING and writes the resultant bytes to BYTES.
+
+  DECODER: The decoder
+
+  STRING: The string to decode.
+
+  BYTES: This is where the resultant bytes are written into. Should be
+  a single-dimentional array of (UNSIGNED-BYTE 8) elements.
+
+  START1, END1: Bounds for STRING
+
+  START2, END2: Bounds for BYTES
+
+Whitespace in string is ignored. It is not necessary that the entire
+STRING is decoded in one go. For example,
+
+* There may not be enough space left in BYTES,
+
+* or the length of the string (minus whitespace chars) may not be a
+  multiple of 4 (base64 decoding works on groups of four characters at
+  at time).
+
+In these cases, DECODE will decode as much of the string as it can and
+write the resultant bytes into BYTES. The remaining string is copied
+to an internal buffer by the decoder and used the next time DECODE is
+called. Also, the second return value (called PENDINGP, see below) is
+set to true.
+
+DECODE can be given an empty STRING in which case the buffered string
+is decoded as much as possible.
+
+Returns POSITION, PENDINGP.
+
+  POSITION: First index of BYTES that wasn't updated
+
+  PENDINGP: True if not all of the STRING was decoded"
   (declare (type decoder decoder)
            (type string string)
            (type array bytes)
@@ -467,7 +580,22 @@ PENDING-P: True if not all BYTES were encoded"
    (string :initform +empty-string+)
    (buffer :initform (make-byte-vector 3))
    (buffer-end :initform 0)
-   (single-byte-vector :initform (make-byte-vector 1))))
+   (single-byte-vector :initform (make-byte-vector 1)))
+  (:documentation
+   "A binary input stream that converts base64 chars from an
+   underlying stream to bytes.
+
+Create a DECODE-STREAM using MAKE-INSTANCE. The following
+initialization keywords are provided:
+
+  UNDERLYING-STREAM: The underlying character input stream from which
+  base64 chars are read. Must be given.
+
+  SCHEME: The base64 encoding scheme to use. Must
+  be :ORIGINAL (default) or :URI.
+
+Note that DECODE-STREAM does not close the underlying stream when
+CLOSE is invoked."))
 
 (defmethod initialize-instance :after ((stream decode-stream) &key (scheme :original))
   (with-slots (underlying-stream decoder)
@@ -533,6 +661,13 @@ PENDING-P: True if not all BYTES were encoded"
           (aref single-byte-vector 0)))))
 
 (defun decode-string (string &key (scheme :original))
+  "Decodes base64 chars in STRING and returns an array
+of (UNSIGNED-BYTE 8) elements.
+
+  STRING: The string to decode.
+
+  SCHEME: The base64 encoding scheme to use. Must
+  be :ORIGINAL (default) or :URI."
   (let ((bytes (make-byte-vector (decode-length (length string))))
         (decoder (make-decoder :scheme scheme)))
     (multiple-value-bind (pos2 pendingp)
