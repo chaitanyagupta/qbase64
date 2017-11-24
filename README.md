@@ -29,6 +29,7 @@ decoding:
   - [Encoding Schemes](#encoding-schemes)
   - [Linebreaks](#linebreaks)
 - [API Reference](#api-reference)
+- [Reporting Bugs](#reporting-bugs)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -206,3 +207,8 @@ During decoding, all whitespace (including newlines) is ignored.
 
 At the moment, API reference is available in the form of doc
 strings for all the exported symbols.
+
+## Reporting Bugs
+
+To report a bug in the library, create a [Github
+issue](https://github.com/chaitanyagupta/qbase64/issues).
