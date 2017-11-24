@@ -20,8 +20,8 @@ decoding:
 The encoding examples below use `ENCODE-BYTES` and `ENCODE-STREAM`.
 
 ```lisp
-(asdf:load-system :qbase64)
-; => T
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (asdf:load-system :qbase64))
 
 ;;; ENCODE-BYTES
 (qbase64:encode-bytes #(1 2 3 4 5 6 7 8))
@@ -41,8 +41,8 @@ The encoding examples below use `ENCODE-BYTES` and `ENCODE-STREAM`.
 The decoding examples below use `DECODE-STRING` and `DECODE-STREAM`.
 
 ```lisp
-(asdf:load-system :qbase64)
-; => T
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (asdf:load-system :qbase64))
 
 ;;; DECODE-STRING
 (qbase64:decode-string "AQIDBAUGBwg=")
@@ -66,51 +66,73 @@ The decoding examples below use `DECODE-STRING` and `DECODE-STREAM`.
 ## Advanced encoding and decoding
 
 Normally you wouldn't need to use `ENCODER` and `DECODER` directly,
-but if you do (perhaps you want more control over memory), you can
-refer to the examples below.
+but if you do (say you want more control over memory management), you
+can refer to the examples below.
+
+In these examples, fixed length sequences are used for both input and
+output, and any input buffered by the encoder/decoder is first cleared
+before further input is fed to it. This allows very tight control over
+how much memory gets used.
+
+Refer to the doc strings for `ENCODER`, `ENCODE`, `DECODER` and
+`DECODE` for more details.
+
+Note that running the following examples requires
+[FLEXI-STREAMS](http://weitz.de/flexi-streams/).
 
 ```lisp
-(asdf:load-system :qbase64)
-; => T
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (asdf:load-system :qbase64)
+  (asdf:load-system :flexi-streams))
 
 ;;; ENCODER
-(loop
-   with encoder = (qbase64:make-encoder)
-   with bytes = #(1 2 3 4 5 6 7 8)
-   for start = 0 then end
-   for end = (min (+ start 4) (length bytes)) 
-   with string = (make-string 5)
-   with pending = nil
-   while (or pending (< start end))
-   do
-     (multiple-value-bind (string-end pendingp)
-         (qbase64:encode encoder bytes string
-                         :start1 start :end1 end
-                         :finish (= start end))
-       (write-string string *standard-output* :end string-end)
-       (setf pending pendingp)))
+(flexi-streams:with-input-from-sequence (in #(1 2 3 4 5 6 7 8))
+  (let* ((encoder (qbase64:make-encoder))
+         (bytes (make-array 4))
+         (string (make-string 5))
+         (read-bytes t)
+         (buffered nil)
+         (eof nil))
+    (loop
+       while (or buffered (not eof))
+       for end1 = (when read-bytes (read-sequence bytes in))
+       if (and read-bytes (< end1 (length bytes))) do (setf eof t)
+       do
+         (multiple-value-bind (end2 pending)
+             (if read-bytes
+                 (qbase64:encode encoder bytes string :end1 end1 :finish eof)
+                 (qbase64:encode encoder #() string :finish eof))
+           (write-string string nil :end end2)
+           (setf buffered pending
+                 read-bytes (or (not pending) (zerop end2)))))))
 ; prints =>
 ; AQIDBAUGBwg=
 
 ;;; DECODER
-(loop
-   with decoder = (qbase64:make-decoder)
-   with string = "AQIDBAUGBwg="
-   for start = 0 then end
-   for end = (min (+ start 4) (length string))
-   with bytes = (make-array 5)
-   with pending = nil
-   while (or pending (< start end))
-   do
-     (multiple-value-bind (bytes-end pendingp)
-         (qbase64:decode decoder string bytes
-                         :start1 start :end1 end)
-       (print (subseq bytes 0 bytes-end))
-       (setf pending pendingp)))
+(with-input-from-string (in "AQIDBAUGBwg=")
+  (let* ((decoder (qbase64:make-decoder))
+         (string (make-string 4))
+         (bytes (make-array 5))
+         (read-string t)
+         (buffered nil)
+         (eof nil))
+    (loop
+       while (or buffered (not eof))
+       for end1 = (when read-string (read-sequence string in))
+       if (and read-string (< end1 (length string))) do (setf eof t)
+       do
+         (multiple-value-bind (end2 pending)
+             (if read-string
+                 (qbase64:decode decoder string bytes :end1 end1)
+                 (qbase64:decode decoder "" bytes))
+           (print (subseq bytes 0 end2))
+           (setf buffered pending
+                 read-string (or (not pending) (zerop end2)))))))
 ; prints =>
 ; #(1 2 3)
 ; #(4 5 6)
 ; #(7 8)
+; #()
 ```
 
 ## More Features
