@@ -1,9 +1,9 @@
 ;;;; qbase64.asd
 
 (asdf:defsystem #:qbase64
-  :description "Describe qbase64 here"
-  :author "Your Name <your.name@example.com>"
-  :license "Specify license here"
+  :description "Fast and flexible base64 encoder and decoder"
+  :author "Chaitanya Gupta <mail@chaitanyagupta.com>"
+  :license "BSD-3-Clause"
   :serial t
   :depends-on ("trivial-gray-streams" "metabang-bind")
   :components ((:file "package")
