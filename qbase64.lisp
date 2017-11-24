@@ -54,7 +54,7 @@
      ((bytes array)                            (string string)))
   (declare (type scheme scheme))
   (declare (type positive-fixnum start1 end1 start2 end2))
-  (declare (optimize speed))
+  (declare (optimize (speed 3) (safety 0) (space 0)))
   (let ((set (ecase scheme
                (:original +original-set+)
                (:uri +uri-set+))))
@@ -82,16 +82,17 @@
          do (setf (char string i2)        (encode-byte (ash b1 -2))
                   (char string (+ i2 1))  (encode-byte
                                            (logior (ash b1 4) (ash b2 -4)))
-                  (char string (+ i2 2))  (if two-missing
-                                              +pad-char+
-                                              (encode-byte
-                                               (logior (ash b2 2) (ash b3 -6))))
-                  (char string (+ i2 3)) (if one-missing
-                                             +pad-char+
-                                             (encode-byte b3)))
-         finally (return (the (values positive-fixnum positive-fixnum)
-                              (values (min (+ start1 (* n 3)) end1)
-                                      (+ start2 (* n 4)))))))))
+                  (char string (+ i2 2))  (encode-byte
+                                           (logior (ash b2 2) (ash b3 -6)))
+                  (char string (+ i2 3)) (encode-byte b3))
+         finally
+           (when one-missing
+             (setf (char string (+ i2 3)) +pad-char+)
+             (when two-missing
+               (setf (char string (+ i2 2)) +pad-char+)))
+           (return (the (values positive-fixnum positive-fixnum)
+                        (values (min (+ start1 (* n 3)) end1)
+                                (+ start2 (* n 4)))))))))
 (defstruct (encoder
              (:constructor %make-encoder))
   (scheme :original :type scheme)
