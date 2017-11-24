@@ -9,15 +9,14 @@ decoding:
   go.
 
 * `ENCODE-STREAM` and `DECODE-STREAM` are gray stream classes that
-  allow one to use CL's binary stream functions to write and read
-  bytes to/from underlying character streams.
+  allow one to write and read bytes from underlying character streams.
 
 * `ENCODER` and `DECODER` provide the low level interface. The other
   interfaces are built on top of these.
 
 ## Encoding (simple)
 
-The encoding examples below use `ENCODE-BYTES` and `ENCODE-STREAM`.
+The examples below use `ENCODE-BYTES` and `ENCODE-STREAM`.
 
 ```lisp
 (eval-when (:compile-toplevel :load-toplevel :execute)
@@ -38,7 +37,7 @@ The encoding examples below use `ENCODE-BYTES` and `ENCODE-STREAM`.
 
 ## Decoding (simple)
 
-The decoding examples below use `DECODE-STRING` and `DECODE-STREAM`.
+The examples below use `DECODE-STRING` and `DECODE-STREAM`.
 
 ```lisp
 (eval-when (:compile-toplevel :load-toplevel :execute)
@@ -139,13 +138,13 @@ Note that running the following examples requires
 
 ### Encoding Schemes
 
-Two base64 encoding schemes are supported: original (used by default)
-and URI.
+Two base64 encoding schemes are supported: original (the default) and
+URI.
 
 URI encoding scheme is useful when base64 strings are used as GET or
 POST values in an HTTP request.
 
-The scheme can be provided by the `:SCHEME` keyword.
+The scheme can be set by using the `:SCHEME` keyword.
 
 ```lisp
 (qbase64:encode-bytes #(251 252 253 254 255) :scheme :original)
