@@ -28,19 +28,20 @@
 (deftype scheme ()
   '(member :original :uri))
 
-(declaim (ftype (function (positive-fixnum t) positive-fixnum) encode-length))
-(defun encode-length (length encode-trailing-bytes)
-  (declare (type positive-fixnum length))
-  (declare (optimize speed))
-  (* 4 (if encode-trailing-bytes
-           (ceiling length 3)
-           (floor length 3))))
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (declaim (ftype (function (positive-fixnum t) positive-fixnum) encode-length))
+  (defun encode-length (length encode-trailing-bytes)
+    (declare (type positive-fixnum length))
+    (declare (optimize speed))
+    (* 4 (if encode-trailing-bytes
+             (ceiling length 3)
+             (floor length 3))))
 
-(declaim (ftype (function (positive-fixnum) positive-fixnum) decode-length))
-(defun decode-length (length)
-  (declare (type positive-fixnum length))
-  (declare (optimize speed))
-  (* 3 (ceiling length 4)))
+  (declaim (ftype (function (positive-fixnum) positive-fixnum) decode-length))
+  (defun decode-length (length)
+    (declare (type positive-fixnum length))
+    (declare (optimize speed))
+    (* 3 (ceiling length 4))))
 
 (define-constant +max-bytes-length+ (- (decode-length most-positive-fixnum) 3)
   "Max length of the byte array that is used as encoding input or decoding output")
