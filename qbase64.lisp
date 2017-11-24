@@ -74,23 +74,24 @@
          for n of-type positive-fixnum below (min count1 count2)
          for i1 of-type positive-fixnum from start1 by 3
          for i2 of-type positive-fixnum from start2 by 4
-         for last-two-missing = (= (- end1 i1) 1)
-         for last-one-missing = (or last-two-missing (= (- end1 i1) 2))
-         for first of-type (unsigned-byte 8) = (aref bytes i1)
-         for second of-type (unsigned-byte 8) = (if last-two-missing 0 (aref bytes (+ i1 1)))
-         for third of-type (unsigned-byte 8) =  (if last-one-missing 0 (aref bytes (+ i1 2)))
-         do (setf (char string i2)        (encode-byte (ash first -2))
+         for two-missing = (= (- end1 i1) 1)
+         for one-missing = (or two-missing (= (- end1 i1) 2))
+         for b1 of-type (unsigned-byte 8) = (aref bytes i1)
+         for b2 of-type (unsigned-byte 8) = (if two-missing 0 (aref bytes (+ i1 1)))
+         for b3 of-type (unsigned-byte 8) =  (if one-missing 0 (aref bytes (+ i1 2)))
+         do (setf (char string i2)        (encode-byte (ash b1 -2))
                   (char string (+ i2 1))  (encode-byte
-                                           (logior (ash first 4) (ash second -4)))
-                  (char string (+ i2 2))  (if last-two-missing
+                                           (logior (ash b1 4) (ash b2 -4)))
+                  (char string (+ i2 2))  (if two-missing
                                               +pad-char+
                                               (encode-byte
-                                               (logior (ash second 2) (ash third -6))))
-                  (char string (+ i2 3)) (if last-one-missing
+                                               (logior (ash b2 2) (ash b3 -6))))
+                  (char string (+ i2 3)) (if one-missing
                                              +pad-char+
-                                             (encode-byte third)))
-         finally (return (values (the positive-fixnum (min (+ start1 (* n 3)) end1))
-                                 (the positive-fixnum (+ start2 (* n 4)))))))))
+                                             (encode-byte b3)))
+         finally (return (the (values positive-fixnum positive-fixnum)
+                              (values (min (+ start1 (* n 3)) end1)
+                                      (+ start2 (* n 4)))))))))
 (defstruct (encoder
              (:constructor %make-encoder))
   (scheme :original :type scheme)
