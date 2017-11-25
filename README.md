@@ -174,6 +174,9 @@ achieve good performance. Consequently,
 
 ## Performance
 
+See [this page](https://github.com/chaitanyagupta/qbase64/wiki/Benchmarks-vs-other-CL-libraries)
+for CPU and memory benchmarks vs other CL libraries.
+
 Encoding and decoding should be very fast under these conditions:
 
 * The byte array is a `SIMPLE-ARRAY` of element type `(UNSIGNED-BYTE 8)`.
