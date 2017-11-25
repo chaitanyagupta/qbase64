@@ -24,7 +24,7 @@ decoding:
   - [Encoding](#encoding)
   - [Decoding](#decoding)
   - [Advanced](#advanced)
-- [Limits](#limits)
+- [Limits and Assertions](#limits-and-assertions)
 - [Performance](#performance)
 - [Additional Features](#additional-features)
   - [Encoding Schemes](#encoding-schemes)
