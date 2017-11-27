@@ -51,13 +51,13 @@
 
 ;;; encode
 
-(defun/td %encode-bytes (bytes string &key
-                               (scheme :original)
-                               (encode-trailing-bytes t)
-                               (start1 0)
-                               (end1 (length bytes))
-                               (start2 0)
-                               (end2 (length string)))
+(defun/td %encode (bytes string &key
+                         (scheme :original)
+                         (encode-trailing-bytes t)
+                         (start1 0)
+                         (end1 (length bytes))
+                         (start2 0)
+                         (end2 (length string)))
     (((bytes (simple-array (unsigned-byte 8))) (string simple-base-string))
      ((bytes (simple-array (unsigned-byte 8))) (string simple-string))
      ((bytes (simple-array (unsigned-byte 8))) (string string))
@@ -196,13 +196,13 @@ Returns POSITION, PENDINGP.
         (incf start1 bytes-to-copy))
       ;; Then encode PBYTES
       (multiple-value-bind (pos1 pos2)
-          (%encode-bytes pbytes string
-                         :scheme scheme
-                         :start1 0
-                         :end1 pbytes-end
-                         :start2 start2
-                         :end2 end2
-                         :encode-trailing-bytes (and (zerop len1) finish))
+          (%encode pbytes string
+                   :scheme scheme
+                   :start1 0
+                   :end1 pbytes-end
+                   :start2 start2
+                   :end2 end2
+                   :encode-trailing-bytes (and (zerop len1) finish))
         (setf start2 pos2)
         ;; If we can't encode all PBYTES, copy everything from BYTES
         ;; and finish now
@@ -224,13 +224,13 @@ Returns POSITION, PENDINGP.
 
     ;; Encode BYTES now
     (multiple-value-bind (pos1 pos2)
-        (%encode-bytes bytes string
-                       :scheme scheme
-                       :start1 start1
-                       :end1 end1
-                       :start2 start2
-                       :end2 end2
-                       :encode-trailing-bytes finish)
+        (%encode bytes string
+                 :scheme scheme
+                 :start1 start1
+                 :end1 end1
+                 :start2 start2
+                 :end2 end2
+                 :encode-trailing-bytes finish)
       ;; If we can't encode all BYTES, copy the remaining to PBYTES
       (when (< pos1 end1)
         (let* ((new-pbytes-length (- end1 pos1))
@@ -394,12 +394,12 @@ CLOSE is invoked."))
       (char= c #\Linefeed) (char= c #\Return)
       (char= c #\Tab)))
 
-(defun/td %decode-string (string bytes &key
-                                 (scheme :original)
-                                 (start1 0)
-                                 (end1 (length string))
-                                 (start2 0)
-                                 (end2 (length bytes)))
+(defun/td %decode (string bytes &key
+                          (scheme :original)
+                          (start1 0)
+                          (end1 (length string))
+                          (start2 0)
+                          (end2 (length bytes)))
     (((string simple-base-string) (bytes (simple-array (unsigned-byte 8))))
      ((string simple-string)      (bytes (simple-array (unsigned-byte 8))))
      ((string string)             (bytes (simple-array (unsigned-byte 8))))
@@ -568,10 +568,10 @@ Returns POSITION, PENDINGP.
       (setf start1 (fill-pchars decoder string
                                 :start start1 :end end1))
       (multiple-value-bind (pos1 pos2)
-          (%decode-string pchars bytes
-                          :scheme scheme
-                          :start1 0 :end1 pchars-end
-                          :start2 start2 :end2 end2)
+          (%decode pchars bytes
+                   :scheme scheme
+                   :start1 0 :end1 pchars-end
+                   :start2 start2 :end2 end2)
         (when (< pos1 pchars-end)
           ;; no more decoding can be done at this point, shift
           ;; remaining PCHARS left, slurp STRING and return
@@ -583,12 +583,12 @@ Returns POSITION, PENDINGP.
 
     ;; Decode STRING now
     (multiple-value-bind (pos1 pos2)
-        (%decode-string string bytes
-                        :scheme scheme
-                        :start1 start1
-                        :end1 end1
-                        :start2 start2
-                        :end2 end2)
+        (%decode string bytes
+                 :scheme scheme
+                 :start1 start1
+                 :end1 end1
+                 :start2 start2
+                 :end2 end2)
       (when (< pos1 end1)
         (fill-pchars decoder string :start pos1 :end end1))
       (values pos2 (plusp pchars-end)))))
