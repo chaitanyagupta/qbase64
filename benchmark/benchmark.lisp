@@ -1,13 +1,14 @@
+(in-package #:cl-user)
+
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (asdf:load-system :parse-number))
+
 (defpackage #:base64-benchmark
   (:use #:cl))
 
 (in-package #:base64-benchmark)
 
-(defun benchmark-type (name)
-  (if (member name '("encode" "encode-no-linebreak" "decode" "decode-no-linebreak")
-              :test #'string=)
-      (intern (string-upcase name) "KEYWORD")
-      (error "Unknown name for benchmark type: ~A" name)))
+(defparameter *benchmark-types* '("encode" "encode-no-linebreak" "decode" "decode-no-linebreak"))
 
 (defun split-sequence (separator sequence &key (test #'eql))
   (let ((result nil))
@@ -85,7 +86,7 @@
     results))
 
 (defun present-results (results)
-  (dolist (benchmark-type '("encode" "encode-no-linebreak" "decode" "decode-no-linebreak"))
+  (dolist (benchmark-type *benchmark-types*)
     (let ((benchmark-results (remove benchmark-type results
                                      :key (lambda (result) (getf result :benchmark-type))
                                      :test #'string/=)))
@@ -103,8 +104,66 @@
           (princ (getf result :stderr))
           (terpri))))))
 
+(defun print-boundary (lengths &optional (stream *standard-output*))
+  (dolist (column lengths)
+    (write-string "+-" stream)
+    (loop repeat column do (write-string "-" stream))
+    (write-string "-" stream))
+  (write-string "+" stream)
+  (terpri))
+
+(defun print-row (row lengths &optional (stream *standard-output*))
+  (mapc (lambda (column length)
+          (write-string "| " stream)
+          (write-string column stream)
+          (loop repeat (1+ (- length (length column))) do (write-string " " stream)))
+        row
+        lengths)
+  (write-string "|" stream)
+  (terpri))
+
+(defun print-table (header &rest row-groups)
+  (let ((lengths (apply #'mapcar
+                        (lambda (&rest strings)
+                          (apply #'max (mapcar #'length strings)))
+                        header
+                        (apply #'append row-groups))))
+    (print-boundary lengths)
+    (print-row header lengths)
+    (print-boundary lengths)
+    (dolist (rows row-groups)
+      (mapc (lambda (row) (print-row row lengths)) rows)
+      (print-boundary lengths))))
+
+(defun parse-time-output (string)
+  (mapcar (lambda (line)
+            (string-trim " " line))
+          (split-sequence #\Newline string)))
+
+(defun real-time (time-output)
+  (format nil "~,2f" (parse-number:parse-number (first (last (split-sequence #\Space (first time-output)))))))
+
+(defun memory-usage (time-output)
+  (format nil "~,2f" (/ (parse-integer (fourth time-output) :junk-allowed t) 1024 1024)))
+
+(defun summarize (results)
+  (let ((header '("benchmark" "library" "run time (s)" "max rss (MB)"))
+        (row-groups nil))
+    (dolist (benchmark-type *benchmark-types*)
+      (push (mapcar (lambda (result)
+                      (let ((time-output (parse-time-output (getf result :stderr))))
+                        (list benchmark-type
+                              (getf result :module)
+                              (real-time time-output)
+                              (memory-usage time-output))))
+                    (remove benchmark-type results
+                            :key (lambda (result) (getf result :benchmark-type))
+                            :test #'string/=))
+            row-groups))
+    (cons header (remove nil row-groups))))
+
 (defun run! (benchmark-types module-names)
-  (present-results (run-benchmarks benchmark-types module-names)))
+  (apply #'print-table (summarize (run-benchmarks benchmark-types module-names))))
 
 (defparameter *run-time-utility* t)
 
