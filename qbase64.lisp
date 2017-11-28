@@ -500,10 +500,12 @@ DECODE."
        with i of-type positive-fixnum = pchars-end
        with j of-type positive-fixnum = start
        while (and (< i (length pchars)) (< j end))
-       for char of-type character = (char string j)
-       if (not (whitespace-p char))
-       do (setf (char pchars i) char) (incf i)
-       do (incf j)
+       do (let ((char (char string j)))
+            (declare (type character char))
+            (when (not (whitespace-p char))
+              (setf (char pchars i) char)
+              (incf i))
+            (incf j))
        finally
          (setf (decoder-pchars decoder) pchars
                (decoder-pchars-end decoder) i)
