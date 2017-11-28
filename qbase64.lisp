@@ -335,7 +335,8 @@ CLOSE is invoked."))
       stream
     (%stream-write-sequence stream +empty-bytes+ 0 0 t)
     (when (and (plusp linebreak) (plusp column))
-      (write-char #\Newline underlying-stream))))
+      (write-char #\Newline underlying-stream)
+      (setf column 0))))
 
 (defmethod stream-force-output ((stream encode-stream))
   (flush-pending-bytes stream)
