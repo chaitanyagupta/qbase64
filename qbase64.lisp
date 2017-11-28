@@ -283,6 +283,7 @@ CLOSE is invoked."))
       stream
     (setf encoder (make-encoder :scheme scheme))))
 
+#-clisp
 (defmethod output-stream-p ((stream encode-stream))
   t)
 
@@ -623,6 +624,7 @@ CLOSE is invoked."))
       stream
     (setf decoder (make-decoder :scheme scheme))))
 
+#-clisp
 (defmethod input-stream-p ((stream decode-stream))
   t)
 

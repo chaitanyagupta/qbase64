@@ -12,8 +12,10 @@
   (declare (ignore abort))
   (setf (stream-open-p stream) nil))
 
+#-clisp
 (defmethod input-stream-p ((stream stream-mixin))
   nil)
 
+#-clisp
 (defmethod output-stream-p ((stream stream-mixin))
   nil)
