@@ -20,6 +20,7 @@ decoding:
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
 
+- [Why qbase64?](#why-qbase64)
 - [Usage](#usage)
   - [Encoding](#encoding)
   - [Decoding](#decoding)
@@ -33,6 +34,25 @@ decoding:
 - [Reporting Bugs](#reporting-bugs)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
+## Why qbase64?
+
+Given that a couple of Lisp libraries already exist for working with
+base64 - [cl-base64][] and [s-base64][] - why might you want to pick
+qbase64? There are two reasons:
+
+1. Stream-based APIs - neither of the alternatives provide a (gray)
+   stream implementation where you can write bytes to a binary stream
+   that is automatically encoded to an underlying character stream and
+   vice-versa.
+
+2. Performance - qbase64 was written with the objective of being fast
+   while keeping memory consumption independent of the input size. See
+   the [Performance](#performance) section for benchmarks and other
+   details.
+
+[cl-base64]: http://www.cliki.net/cl-base64
+[s-base64]: https://github.com/svenvc/s-base64
 
 ## Usage
 
