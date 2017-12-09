@@ -21,6 +21,7 @@ decoding:
 
 
 - [Why qbase64?](#why-qbase64)
+- [Installation](#installation)
 - [Usage](#usage)
   - [Encoding](#encoding)
   - [Decoding](#decoding)
@@ -54,6 +55,14 @@ qbase64? There are two reasons:
 [cl-base64]: http://www.cliki.net/cl-base64
 [s-base64]: https://github.com/svenvc/s-base64
 
+## Installation
+
+Install using quicklisp:
+
+```lisp
+(ql:quickload :qbase64)
+```
+
 ## Usage
 
 ### Encoding
@@ -61,9 +70,6 @@ qbase64? There are two reasons:
 The examples below use `ENCODE-BYTES` and `ENCODE-STREAM`.
 
 ```lisp
-(eval-when (:compile-toplevel :load-toplevel :execute)
-  (asdf:load-system :qbase64))
-
 ;;; ENCODE-BYTES
 (qbase64:encode-bytes #(1 2 3 4 5 6 7 8))
 ; => "AQIDBAUGBwg="
@@ -82,9 +88,6 @@ The examples below use `ENCODE-BYTES` and `ENCODE-STREAM`.
 The examples below use `DECODE-STRING` and `DECODE-STREAM`.
 
 ```lisp
-(eval-when (:compile-toplevel :load-toplevel :execute)
-  (asdf:load-system :qbase64))
-
 ;;; DECODE-STRING
 (qbase64:decode-string "AQIDBAUGBwg=")
 ; => #(1 2 3 4 5 6 7 8)
@@ -122,10 +125,6 @@ Note that running the following examples requires
 [FLEXI-STREAMS](http://weitz.de/flexi-streams/).
 
 ```lisp
-(eval-when (:compile-toplevel :load-toplevel :execute)
-  (asdf:load-system :qbase64)
-  (asdf:load-system :flexi-streams))
-
 ;;; ENCODER
 (flexi-streams:with-input-from-sequence (in #(1 2 3 4 5 6 7 8))
   (let* ((encoder (qbase64:make-encoder))
