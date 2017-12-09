@@ -72,7 +72,7 @@ The examples below use `ENCODE-BYTES` and `ENCODE-STREAM`.
 ```lisp
 ;;; ENCODE-BYTES
 (qbase64:encode-bytes #(1 2 3 4 5 6 7 8))
-; => "AQIDBAUGBwg="
+=> "AQIDBAUGBwg="
 
 ;;; ENCODE-STREAM
 (with-output-to-string (s)
@@ -80,7 +80,7 @@ The examples below use `ENCODE-BYTES` and `ENCODE-STREAM`.
                                         :underlying-stream s))
     (write-sequence #(1 2 3 4) out)
     (write-sequence #(5 6 7 8) out)))
-; => "AQIDBAUGBwg="
+=> "AQIDBAUGBwg="
 ```
 
 ### Decoding
@@ -90,7 +90,7 @@ The examples below use `DECODE-STRING` and `DECODE-STREAM`.
 ```lisp
 ;;; DECODE-STRING
 (qbase64:decode-string "AQIDBAUGBwg=")
-; => #(1 2 3 4 5 6 7 8)
+=> #(1 2 3 4 5 6 7 8)
 
 ;;; DECODE-STREAM
 (with-input-from-string (s "AQIDBAUGBwg=")
@@ -101,7 +101,6 @@ The examples below use `DECODE-STRING` and `DECODE-STREAM`.
          for position = (read-sequence bytes in)
          do (print (subseq bytes 0 position))
          while (= position (length bytes))))))
-; prints =>
 ; #(1 2 3 4) 
 ; #(5 6 7 8) 
 ; #() 
@@ -145,7 +144,6 @@ Note that running the following examples requires
            (write-string string nil :end end2)
            (setf buffered pending
                  read-bytes (or (not pending) (zerop end2)))))))
-; prints =>
 ; AQIDBAUGBwg=
 
 ;;; DECODER
@@ -168,7 +166,6 @@ Note that running the following examples requires
            (print (subseq bytes 0 end2))
            (setf buffered pending
                  read-string (or (not pending) (zerop end2)))))))
-; prints =>
 ; #(1 2 3)
 ; #(4 5 6)
 ; #(7 8)
@@ -217,10 +214,10 @@ The scheme can be set by using the `:SCHEME` keyword.
 
 ```lisp
 (qbase64:encode-bytes #(251 252 253 254 255) :scheme :original)
-; => "+/z9/v8="
+=> "+/z9/v8="
 
 (qbase64:encode-bytes #(251 252 253 254 255) :scheme :uri)
-; => "-_z9_v8="
+=> "-_z9_v8="
 ```
 
 ### Linebreaks
@@ -232,7 +229,6 @@ column number at which lines should be broken.
 
 ```lisp
 (princ (qbase64:encode-bytes #(1 2 3 4 5 6 7 8) :linebreak 4))
-; prints =>
 ; AQID
 ; BAUG
 ; Bwg=
