@@ -51,6 +51,8 @@
 (defun module-name (module)
   (string-downcase (class-name (class-of module))))
 
+(defvar *write-output-files* nil)
+
 (defun run-and-collect-result (module benchmark-type)
   (flet ((benchmark-type-is (name)
            (string= benchmark-type name)))
@@ -59,7 +61,15 @@
                              ((benchmark-type-is "decode") "test-base64.txt")
                              ((benchmark-type-is "decode-no-linebreak") "test-base64-no-linebreak.txt")
                              (t (error "Unknown benchmark type ~A" benchmark-type))))
-           (output-file "/dev/null")
+           (output-file (if *write-output-files*
+                            (format nil "/tmp/test-~A-~A"
+                                    (module-name module)
+                                    (cond ((benchmark-type-is "encode") "encoded.txt")
+                                          ((benchmark-type-is "encode-no-linebreak") "encoded-no-linebreak.txt")
+                                          ((benchmark-type-is "decode") "decoded.bin")
+                                          ((benchmark-type-is "decode-no-linebreak") "decoded-no-linebreak.bin")
+                                          (t (error "Unknown benchmark type ~A" benchmark-type))))
+                            "/dev/null"))
            (error-file (make-string-output-stream))
            (start-time (get-internal-real-time))
            (process (run module benchmark-type input-file output-file error-file))
