@@ -5,7 +5,7 @@ Common Lisp. It provides three interfaces for both encoding and
 decoding:
 
 * `ENCODE-BYTES` and `DECODE-STRING` are the easiest to use. They
-  allow one to encode a byte array and decode a base64 string in one
+  allow one to encode a byte vector and decode a base64 string in one
   go.
 
 * `ENCODE-STREAM` and `DECODE-STREAM` are gray stream classes that
@@ -182,7 +182,7 @@ achieve good performance. Consequently,
   array can be `T`, the elements themselves must conform to this
   restriction.
 
-* Max length of the byte array that is used as encoding input or
+* Max length of the byte vector that is used as encoding input or
   decoding output should never exceed `+MAX-BYTES-LENGTH+`.
 
 * Max length of the string that is used as encoding output or decoding
@@ -195,10 +195,13 @@ for CPU and memory benchmarks vs other CL libraries.
 
 Encoding and decoding should be very fast under these conditions:
 
-* The byte array is a `SIMPLE-ARRAY` of element type `(UNSIGNED-BYTE 8)`.
+* The byte vector is a `SIMPLE-ARRAY` of element type `(UNSIGNED-BYTE 8)`.
 
 * The string is a `SIMPLE-STRING`. Theoretically `SIMPLE-BASE-STRING`
-  should be even faster.
+  could be even faster.
+
+That said, these are just the optimal conditions. You can safely use
+any `STRING` or `VECTOR` with qbase64 if needed.
 
 ## Additional Features
 
