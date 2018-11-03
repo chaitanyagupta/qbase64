@@ -700,6 +700,8 @@ of (UNSIGNED-BYTE 8) elements.
         (decode decoder string bytes)
       (when pendingp
         (error "Input base64 string was not complete"))
-      (make-array pos2
-                  :element-type '(unsigned-byte 8)
-                  :displaced-to bytes))))
+      (if (= pos2 (length bytes))
+          bytes
+          (make-array pos2
+                      :element-type '(unsigned-byte 8)
+                      :displaced-to bytes)))))
