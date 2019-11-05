@@ -13,14 +13,16 @@
 (declaim (simple-base-string +original-set+ +uri-set+))
 
 (define-constant +original-set+
-    (make-array (length #1="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/")
-                :element-type 'base-char
-                :initial-contents #1#))
+    (let ((str "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"))
+      (make-array (length str)
+                  :element-type 'base-char
+                  :initial-contents str)))
 
 (define-constant +uri-set+
-    (make-array (length #1="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_")
-                :element-type 'base-char
-                :initial-contents #1#))
+    (let ((str "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"))
+      (make-array (length str)
+                  :element-type 'base-char
+                  :initial-contents str)))
 
 (define-constant +pad-char+ #\=)
 (declaim (base-char +pad-char+))
