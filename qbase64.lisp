@@ -155,7 +155,7 @@ example,
 
 In these cases, as much as possible BYTES are encoded and the
 resultant chars written into STRING, the remaining bytes are copied to
-an internal buffer by the encoder and used the next time DECODE is
+an internal buffer by the encoder and used the next time ENCODE is
 called. Also, the second value returned (called PENDINGP, see below)
 is set to true.
 
