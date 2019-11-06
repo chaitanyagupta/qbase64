@@ -363,12 +363,27 @@ CLOSE is invoked."))
 
   LINEBREAK: If 0 (the default), no linebreaks are written. Otherwise
   its value must be the max number of characters per line."
-  (with-output-to-string (str)
-    (with-open-stream (out (make-instance 'encode-stream
-                                          :scheme scheme
-                                          :underlying-stream str
-                                          :linebreak linebreak))
-      (write-sequence bytes out))))
+  (if (plusp linebreak)
+      ;; If linbreaks are required in the output, use ENCODE-STREAM, else use
+      ;; the ENCODER directly
+      ;;
+      ;; TODO: We should try to add linebreak support in the ENCODER directly,
+      ;; this will 1) greatly simplify the gray-streams code, and 2) add an
+      ;; important feature directly in the lowest level API
+      (with-output-to-string (str nil :element-type 'base-char)
+        (with-open-stream (out (make-instance 'encode-stream
+                                              :scheme scheme
+                                              :underlying-stream str
+                                              :linebreak linebreak))
+          (write-sequence bytes out)))
+      (let ((string (make-string (encode-length (length bytes) t) :element-type 'base-char))
+            (encoder (make-encoder :scheme scheme)))
+        (multiple-value-bind (pos2 pendingp)
+            (encode encoder bytes string :finish t)
+          (declare (ignore pos2))
+          (when pendingp
+            (error "Could not encode all bytes to string"))
+          string))))
 
 ;;; decode
 
