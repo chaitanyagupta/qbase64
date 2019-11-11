@@ -4,7 +4,7 @@
 
 ;;; types and constants
 
-(declaim ((array (unsigned-byte 8)) +empty-bytes+))
+(declaim (type (array (unsigned-byte 8)) +empty-bytes+))
 (define-constant +empty-bytes+ (make-byte-vector 0))
 
 (declaim (simple-base-string +empty-string+))
