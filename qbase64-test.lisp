@@ -1,7 +1,7 @@
 (in-package #:cl-user)
 
 (defpackage #:qbase64-test
-  (:use #:cl #:fiveam #:temporary-file)
+  (:use #:cl #:fiveam #:cl-fad)
   (:import-from #:qbase64 #:bytes #:make-byte-vector))
 
 (in-package #:qbase64-test)
