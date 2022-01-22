@@ -13,7 +13,7 @@
                (:file "qbase64")))
 
 (asdf:defsystem "qbase64/test"
-  :depends-on ("qbase64" "fiveam" "temporary-file")
+  :depends-on ("qbase64" "fiveam" "cl-fad")
   :perform (test-op (o s)
                     (uiop:symbol-call :fiveam '#:run!
                                       (list (uiop:find-symbol* '#:encoder '#:qbase64-test)
